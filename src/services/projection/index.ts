@@ -1,27 +1,18 @@
+import { isTauri } from '../platform'
 import { BroadcastChannelTransport } from './BroadcastChannelTransport'
+import { TauriEventTransport } from './TauriEventTransport'
 
 export type { ProjectionChannel } from './ProjectionChannel'
-export { BroadcastChannelTransport } from './BroadcastChannelTransport'
+export type { MonitorInfo, OutputWindowController } from './outputWindow'
+export { outputWindow, defaultMonitor, OUTPUT_WINDOW_LABEL } from './outputWindow'
 
 /**
  * The single place the app decides how the two windows talk.
  *
- * Under Tauri this becomes a `TauriEventTransport`; every caller keeps using
- * the `ProjectionChannel` interface and stays unchanged.
+ * Tauri's event bus in the desktop shell, BroadcastChannel when the same bundle
+ * runs in a plain browser during development. Every caller works against the
+ * `ProjectionChannel` interface and is unaware of which one it got.
  */
-export const projectionChannel = new BroadcastChannelTransport()
-
-/**
- * Opens the output window.
- *
- * In the browser this is a separate window the operator drags onto the second
- * display and fullscreens with F11. Under Tauri it becomes a real borderless
- * window positioned on the chosen monitor automatically.
- */
-export function openOutputWindow(): Window | null {
-  const url = `${window.location.origin}${window.location.pathname}#/output`
-  const features = 'width=1280,height=720,menubar=no,toolbar=no,location=no,status=no'
-  const win = window.open(url, 'bible-point-output', features)
-  win?.focus()
-  return win
-}
+export const projectionChannel = isTauri()
+  ? new TauriEventTransport()
+  : new BroadcastChannelTransport()
