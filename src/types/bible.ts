@@ -10,24 +10,35 @@ export type TestamentId = 'OT' | 'NT'
 
 /** A Bible translation available to the app, installed or not. */
 export interface Translation {
-  /** Stable pack id, e.g. "id-tb", "en-kjv". */
+  /** Stable pack id from the source catalog, e.g. "indayt", "eng-kjv2006". */
   id: string
-  /** Full display name, e.g. "Terjemahan Baru". */
+  /** Full display name, e.g. "Alkitab Yang Terbuka". */
   name: string
-  /** Short label shown in dense UI, e.g. "TB". */
+  /** Short label shown in dense UI, e.g. "AYT". */
   abbrev: string
-  /** BCP-47-ish language tag, e.g. "id", "en". */
+  /** Language code as the catalog publishes it, e.g. "ind", "eng". */
   language: string
-  /** Human-readable language name for grouping in the UI. */
+  /** Human-readable language name, used to group the Bible Manager. */
   languageName: string
-  /** Copyright / licence line shown in the Bible Manager. */
+  /**
+   * Copyright line exactly as the publisher states it.
+   *
+   * Shown wherever the translation is, and never synthesised — it is the record
+   * of why redistributing this text is permitted.
+   */
   license: string
-  /** Year of publication, when known. */
+  /** Year of publication, when the copyright line names one. */
   year?: number
   /** Whether the pack is present locally and ready to project. */
   installed: boolean
-  /** Download size of the pack, used by the Bible Manager. */
-  sizeBytes: number
+  /** Verses the pack contains; more meaningful to an operator than megabytes. */
+  verseCount: number
+  hasOldTestament: boolean
+  hasNewTestament: boolean
+  /** Bytes on disk. Known only once installed. */
+  sizeBytes?: number
+  /** Publisher's page for this translation. */
+  sourceUrl?: string
 }
 
 export interface Book {
