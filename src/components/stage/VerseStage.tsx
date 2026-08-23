@@ -54,6 +54,13 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
     ? { WebkitTextStrokeWidth: `${type.outline}px`, WebkitTextStrokeColor: type.outlineColor }
     : undefined
 
+  // A custom font travels on the theme itself, so the output window can render
+  // it from the snapshot alone without consulting app settings. The rule is
+  // emitted per stage; duplicate identical @font-face rules are harmless.
+  const fontFace = type.fontSrc
+    ? `@font-face{font-family:"${type.fontFamily}";src:url("${type.fontSrc}");font-display:swap}`
+    : null
+
   const enterStyle: React.CSSProperties = (() => {
     if (transition.kind === 'none') return {}
     const base = {
@@ -94,6 +101,8 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
       className="absolute inset-0 overflow-hidden"
       style={{ containerType: 'size' }}
     >
+      {fontFace && <style>{fontFace}</style>}
+
       <StageBackground background={theme.background} overlay={theme.overlay} />
 
       {showSafeArea && (
@@ -114,7 +123,9 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
               : 'center',
             padding: `${layout.padding}cqh ${layout.padding}cqh`,
             color: type.color,
-            fontFamily: fontStack(type.fontFamily),
+            fontFamily: type.fontSrc
+              ? `"${type.fontFamily}", ${fontStack('Inter')}`
+              : fontStack(type.fontFamily),
             textAlign: layout.align,
             ...enterStyle,
           }}

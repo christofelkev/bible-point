@@ -5,7 +5,7 @@
  * sent across the projection channel to the output window verbatim.
  */
 
-export type BackgroundKind = 'solid' | 'gradient' | 'image'
+export type BackgroundKind = 'solid' | 'gradient' | 'image' | 'video'
 
 export interface SolidBackground {
   kind: 'solid'
@@ -41,7 +41,27 @@ export interface ImageBackground {
   path?: string
 }
 
-export type Background = SolidBackground | GradientBackground | ImageBackground
+/**
+ * A looping video backdrop.
+ *
+ * Shares `src`/`path` semantics with ImageBackground: `path` is what survives a
+ * restart, `src` is recomputed from it. Playback is always muted and looping —
+ * a background that demanded attention or stopped mid-service would be a fault,
+ * not a feature.
+ */
+export interface VideoBackground {
+  kind: 'video'
+  src: string
+  fit: 'cover' | 'contain'
+  label?: string
+  path?: string
+}
+
+export type Background =
+  | SolidBackground
+  | GradientBackground
+  | ImageBackground
+  | VideoBackground
 
 export interface Overlay {
   /** 0..1 black scrim strength, keeps text readable over busy photos. */
@@ -55,7 +75,21 @@ export type VerticalAlign = 'top' | 'middle' | 'bottom'
 export type ReferencePosition = 'top' | 'bottom' | 'hidden'
 
 export interface Typography {
+  /**
+   * Either one of the built-in stacks, or the family name of a font the
+   * operator supplied. Custom fonts also carry `fontSrc`.
+   */
   fontFamily: string
+  /**
+   * URL of a custom font file, when the family is not a built-in.
+   *
+   * Carried on the theme rather than looked up separately so the theme stays
+   * self-describing: the output window renders from the snapshot it receives
+   * and never has to consult app settings for a font.
+   */
+  fontSrc?: string
+  /** Stable location of the custom font file; `fontSrc` is derived from it. */
+  fontPath?: string
   /** Size relative to stage height (vh-like), so it scales with any screen. */
   size: number
   weight: number
