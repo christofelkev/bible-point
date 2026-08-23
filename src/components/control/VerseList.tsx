@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, ListPlus, Play, X, Loader2 } from 'lucide-react'
+import { BookMarked, ChevronLeft, ChevronRight, ListPlus, Play, X, Loader2 } from 'lucide-react'
 import clsx from 'clsx'
 import { useAppStore } from '../../store/useAppStore'
 import { Button } from '../ui/controls'
@@ -12,13 +12,44 @@ export function VerseList() {
   const searchQuery = useAppStore((s) => s.searchQuery)
   const searchResults = useAppStore((s) => s.searchResults)
   const searching = useAppStore((s) => s.searching)
+  const activeTranslationId = useAppStore((s) => s.activeTranslationId)
 
   const showingSearch = searchQuery.trim().length >= 2
 
   return (
     <main className="flex-1 min-w-0 flex flex-col bg-ink-950">
-      {showingSearch ? <SearchResults results={searchResults} loading={searching} /> : <ChapterReader />}
+      {!activeTranslationId ? (
+        <NoTranslationInstalled />
+      ) : showingSearch ? (
+        <SearchResults results={searchResults} loading={searching} />
+      ) : (
+        <ChapterReader />
+      )}
     </main>
+  )
+}
+
+/**
+ * Shown before the first pack is installed. A blank reader would read as a bug,
+ * so say plainly what is missing and where to fix it.
+ */
+function NoTranslationInstalled() {
+  const setPanelTab = useAppStore((s) => s.setPanelTab)
+
+  return (
+    <div className="flex-1 grid place-items-center px-8 text-center">
+      <div className="max-w-[380px]">
+        <BookMarked size={28} className="mx-auto text-ink-600 mb-4" />
+        <h2 className="text-sm font-semibold text-white">Belum ada Alkitab terpasang</h2>
+        <p className="mt-2 text-[12px] leading-relaxed text-ink-400">
+          Bible Point tidak membawa teks Alkitab bawaan. Pasang satu terjemahan
+          lewat Bible Manager — sekali unduh, setelah itu bisa dipakai tanpa internet.
+        </p>
+        <Button variant="brand" className="mt-4" onClick={() => setPanelTab('library')}>
+          <BookMarked size={13} /> Buka Bible Manager
+        </Button>
+      </div>
+    </div>
   )
 }
 

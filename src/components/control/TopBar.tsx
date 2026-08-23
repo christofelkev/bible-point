@@ -60,12 +60,16 @@ export function TopBar() {
         <span className="text-[13px] font-semibold tracking-tight">Bible Point</span>
       </div>
 
-      <Select
-        value={activeTranslationId}
-        onChange={(id) => setTranslation(id)}
-        options={installed.map((t) => ({ value: t.id, label: `${t.abbrev} — ${t.name}` }))}
-        className="h-8 max-w-[210px]"
-      />
+      {installed.length > 0 ? (
+        <Select
+          value={activeTranslationId}
+          onChange={(id) => setTranslation(id)}
+          options={installed.map((t) => ({ value: t.id, label: `${t.abbrev} — ${t.name}` }))}
+          className="h-8 max-w-[210px]"
+        />
+      ) : (
+        <span className="text-[11px] text-ink-400 px-1">Belum ada terjemahan</span>
+      )}
 
       <div
         className={clsx(

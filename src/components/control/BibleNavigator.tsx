@@ -16,6 +16,7 @@ export function BibleNavigator() {
 
   const activeBook = books.find((b) => b.id === activeBookId)
   const bookRef = useRef<HTMLButtonElement>(null)
+  const hasBooks = books.length > 0
 
   // Keep the selected book in view when navigation comes from elsewhere
   // (omnibox jump, chapter roll-over into the next book).
@@ -33,6 +34,16 @@ export function BibleNavigator() {
     () => new Set(SAMPLE_CHAPTERS.filter((s) => s.bookId === activeBookId).map((s) => s.chapter)),
     [activeBookId],
   )
+
+  if (!hasBooks) {
+    return (
+      <aside className="w-[268px] shrink-0 border-r border-ink-800 bg-ink-900 grid place-items-center px-6">
+        <p className="text-[11px] leading-relaxed text-ink-400 text-center">
+          Daftar kitab muncul setelah ada terjemahan terpasang.
+        </p>
+      </aside>
+    )
+  }
 
   return (
     <aside className="w-[268px] shrink-0 flex border-r border-ink-800 bg-ink-900 overflow-hidden">

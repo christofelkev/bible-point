@@ -1,7 +1,10 @@
 import type { Book, SearchResult, Translation, Verse } from '../../types/bible'
-import type { BibleSource } from './BibleSource'
-import { MOCK_TRANSLATIONS, booksFor } from '../../data/bibleMeta'
+import type { BibleSource, InstallProgress } from './BibleSource'
+import { highlightRanges } from './BibleSource'
+import { booksFor } from '../../data/bibleMeta'
+import { MOCK_TRANSLATIONS } from '../../data/mockTranslations'
 import { MOCK_CHAPTERS, PLACEHOLDER_VERSE } from '../../data/mockChapters'
+import { parseReference } from './parseReference'
 
 /** Simulated I/O latency, so loading states are exercised during development. */
 const LATENCY_MS = 90
@@ -11,14 +14,16 @@ function delay<T>(value: T): Promise<T> {
 }
 
 /**
- * In-memory BibleSource used while the frontend is built.
+ * In-memory BibleSource for browser development mode.
  *
- * It deliberately mimics the shape of the eventual SQLite-backed source,
- * including async access and per-translation book naming, so swapping in the
- * real implementation is a one-line change in `services/bible/index.ts`.
+ * It mirrors the shape of the SQLite-backed source, including async access,
+ * per-translation book naming, and staged install progress, so the Bible
+ * Manager needs no platform branches and the browser exercises the same code
+ * paths the desktop build will.
  */
 export class MockBibleSource implements BibleSource {
   private translations: Translation[]
+  private progressHandlers = new Set<(progress: InstallProgress) => void>()
 
   constructor(translations: Translation[] = MOCK_TRANSLATIONS) {
     this.translations = translations.map((t) => ({ ...t }))
@@ -28,30 +33,13 @@ export class MockBibleSource implements BibleSource {
     return delay(this.translations.map((t) => ({ ...t })))
   }
 
-  /** Stands in for a pack download; flips the translation to installed. */
-  install(translationId: string): Promise<Translation[]> {
-    this.translations = this.translations.map((t) =>
-      t.id === translationId ? { ...t, installed: true } : t,
-    )
-    return this.listTranslations()
-  }
-
-  uninstall(translationId: string): Promise<Translation[]> {
-    this.translations = this.translations.map((t) =>
-      t.id === translationId ? { ...t, installed: false } : t,
-    )
-    return this.listTranslations()
-  }
-
   getBooks(translationId: string): Promise<Book[]> {
-    const language = this.languageOf(translationId)
-    return delay(booksFor(language))
+    return delay(booksFor(this.languageOf(translationId)))
   }
 
   getChapter(translationId: string, bookId: string, chapter: number): Promise<Verse[]> {
     const language = this.languageOf(translationId)
-    const book = booksFor(language).find((b) => b.id === bookId)
-    const bookName = book?.name ?? bookId
+    const bookName = booksFor(language).find((b) => b.id === bookId)?.name ?? bookId
     const texts = MOCK_CHAPTERS[translationId]?.[`${bookId}:${chapter}`]
 
     // Chapters outside the sample set still render, with one placeholder verse,
@@ -82,8 +70,8 @@ export class MockBibleSource implements BibleSource {
       const bookName = books.find((b) => b.id === bookId)?.name ?? bookId
       texts.forEach((text, i) => {
         if (results.length >= limit) return
-        const at = text.toLowerCase().indexOf(needle)
-        if (at === -1) return
+        const highlights = highlightRanges(text, needle)
+        if (highlights.length === 0) return
         results.push({
           translationId,
           bookId,
@@ -91,7 +79,7 @@ export class MockBibleSource implements BibleSource {
           chapter: Number(chapterStr),
           verse: i + 1,
           text,
-          highlights: [[at, at + needle.length]],
+          highlights,
         })
       })
     }
@@ -110,49 +98,41 @@ export class MockBibleSource implements BibleSource {
     return verses.filter((v) => v.verse >= parsed.verseStart! && v.verse <= end)
   }
 
-  private languageOf(translationId: string): string {
-    return this.translations.find((t) => t.id === translationId)?.language ?? 'en'
+  /**
+   * Walks the same phases the real installer reports, so the Bible Manager's
+   * progress UI is exercised in the browser. No text is actually fetched —
+   * only translations with sample chapters compiled in will have content.
+   */
+  async install(translationId: string): Promise<void> {
+    const phases: Array<[InstallProgress['phase'], number]> = [
+      ['downloading', 12], ['downloading', 46], ['downloading', 88],
+      ['extracting', 100], ['importing', 40], ['importing', 90],
+      ['indexing', 100], ['done', 100],
+    ]
+
+    for (const [phase, percent] of phases) {
+      await delay(null)
+      this.progressHandlers.forEach((h) => h({ translationId, phase, percent }))
+    }
+
+    this.translations = this.translations.map((t) =>
+      t.id === translationId ? { ...t, installed: true } : t,
+    )
   }
-}
 
-interface ParsedReference {
-  bookId: string
-  chapter: number
-  verseStart?: number
-  verseEnd?: number
-}
+  async uninstall(translationId: string): Promise<void> {
+    this.translations = this.translations.map((t) =>
+      t.id === translationId ? { ...t, installed: false } : t,
+    )
+    await delay(null)
+  }
 
-/**
- * Parses references the way a person types them under time pressure:
- * "yoh 3:16", "Yohanes 3", "php 4:6-7", "1 kor 13:4".
- *
- * Book matching is a case-insensitive prefix match against both the full name
- * and the abbreviation, which is forgiving enough for the quick-jump box.
- */
-export function parseReference(input: string, books: Book[]): ParsedReference | null {
-  const cleaned = input.trim().toLowerCase().replace(/\s+/g, ' ')
-  if (!cleaned) return null
+  onInstallProgress(handler: (progress: InstallProgress) => void): () => void {
+    this.progressHandlers.add(handler)
+    return () => this.progressHandlers.delete(handler)
+  }
 
-  const match = cleaned.match(/^(.+?)\s*(\d+)(?:\s*[:.]\s*(\d+)(?:\s*-\s*(\d+))?)?$/)
-  if (!match) return null
-
-  const [, rawBook, chapterStr, verseStartStr, verseEndStr] = match
-  const bookQuery = rawBook.trim()
-  if (!bookQuery) return null
-
-  const book =
-    books.find((b) => b.name.toLowerCase() === bookQuery || b.abbrev.toLowerCase() === bookQuery) ??
-    books.find((b) => b.name.toLowerCase().startsWith(bookQuery) || b.abbrev.toLowerCase().startsWith(bookQuery))
-
-  if (!book) return null
-
-  const chapter = Number(chapterStr)
-  if (chapter < 1 || chapter > book.chapterCount) return null
-
-  return {
-    bookId: book.id,
-    chapter,
-    verseStart: verseStartStr ? Number(verseStartStr) : undefined,
-    verseEnd: verseEndStr ? Number(verseEndStr) : undefined,
+  private languageOf(translationId: string): string {
+    return this.translations.find((t) => t.id === translationId)?.language ?? 'eng'
   }
 }

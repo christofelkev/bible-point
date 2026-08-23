@@ -3,6 +3,7 @@ import type { Book, SearchResult, Translation, Verse } from '../types/bible'
 import type { Background, Theme, Typography, StageLayout, Overlay, Transition } from '../types/theme'
 import type { ProjectionMode, ProjectionState } from '../types/projection'
 import { bibleSource } from '../services/bible'
+import type { InstallProgress } from '../services/bible'
 import { projectionChannel, outputWindow, defaultMonitor } from '../services/projection'
 import type { MonitorInfo } from '../services/projection'
 import { isTauri } from '../services/platform'
@@ -38,6 +39,12 @@ interface AppState {
   searchQuery: string
   searchResults: SearchResult[]
   searching: boolean
+
+  // --- Bible Manager -------------------------------------------------------
+  /** Live progress per translation being installed, keyed by translation id. */
+  installProgress: Record<string, InstallProgress>
+  /** Last failure per translation, so the row can show what went wrong. */
+  installError: Record<string, string>
 
   // --- Look ----------------------------------------------------------------
   themes: Theme[]
@@ -103,8 +110,10 @@ interface AppState {
   clearPlaylist: () => void
 
   setPanelTab: (tab: PanelTab) => void
+  refreshTranslations: () => Promise<void>
   installTranslation: (id: string) => Promise<void>
   uninstallTranslation: (id: string) => Promise<void>
+  dismissInstallError: (id: string) => void
 }
 
 let idCounter = 0
@@ -115,7 +124,7 @@ const cloneTheme = (theme: Theme): Theme => JSON.parse(JSON.stringify(theme)) as
 
 export const useAppStore = create<AppState>((set, get) => ({
   translations: [],
-  activeTranslationId: 'id-tl',
+  activeTranslationId: '',
   books: [],
   activeBookId: 'JHN',
   activeChapter: 3,
@@ -127,6 +136,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   searchQuery: '',
   searchResults: [],
   searching: false,
+
+  installProgress: {},
+  installError: {},
 
   themes: BUILTIN_THEMES.map(cloneTheme),
   activeThemeId: BUILTIN_THEMES[0].id,
@@ -146,12 +158,22 @@ export const useAppStore = create<AppState>((set, get) => ({
   panelTab: 'design',
 
   async init() {
+    bibleSource.onInstallProgress((progress) => {
+      set({ installProgress: { ...get().installProgress, [progress.translationId]: progress } })
+    })
+
     const translations = await bibleSource.listTranslations()
+    set({ translations })
+
+    // A fresh desktop install has no packs yet. Leave the reader empty and let
+    // the UI point the operator at the Bible Manager rather than crashing on a
+    // translation that does not exist.
     const installed = translations.filter((t) => t.installed)
-    const activeTranslationId = installed[0]?.id ?? translations[0].id
-    const books = await bibleSource.getBooks(activeTranslationId)
-    set({ translations, activeTranslationId, books })
-    await get().openChapter(get().activeBookId, get().activeChapter)
+    if (installed.length > 0) {
+      await get().setTranslation(installed[0].id)
+    } else {
+      set({ activeTranslationId: '', books: [], chapterVerses: [], panelTab: 'library' })
+    }
 
     // The output window may open at any time; answer its sync request with the
     // current snapshot so it never sits blank waiting for the next action.
@@ -167,12 +189,25 @@ export const useAppStore = create<AppState>((set, get) => ({
   async setTranslation(id) {
     const books = await bibleSource.getBooks(id)
     set({ activeTranslationId: id, books })
-    await get().openChapter(get().activeBookId, get().activeChapter)
+
+    // The previously open book may be absent from this translation — a New
+    // Testament-only pack has no Genesis — so fall back to its first book.
+    const current = books.find((b) => b.id === get().activeBookId)
+    const target = current ?? books[0]
+    if (!target) {
+      set({ chapterVerses: [] })
+      return
+    }
+    const chapter = Math.min(get().activeChapter, target.chapterCount)
+    await get().openChapter(target.id, current ? chapter : 1)
   },
 
   async openChapter(bookId, chapter) {
+    const translationId = get().activeTranslationId
+    if (!translationId) return
+
     set({ loadingChapter: true, activeBookId: bookId, activeChapter: chapter })
-    const verses = await bibleSource.getChapter(get().activeTranslationId, bookId, chapter)
+    const verses = await bibleSource.getChapter(translationId, bookId, chapter)
     set({ chapterVerses: verses, loadingChapter: false, selection: [] })
   },
 
@@ -424,18 +459,51 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ panelTab: tab })
   },
 
+  async refreshTranslations() {
+    set({ translations: await bibleSource.listTranslations() })
+  },
+
   async installTranslation(id) {
-    const translations = await bibleSource.install(id)
-    set({ translations })
+    const { [id]: _cleared, ...remainingErrors } = get().installError
+    set({ installError: remainingErrors })
+
+    try {
+      await bibleSource.install(id)
+      await get().refreshTranslations()
+
+      // First pack on a fresh machine: open it straight away so the operator
+      // lands in the reader instead of an empty screen.
+      if (!get().activeTranslationId) {
+        await get().setTranslation(id)
+        set({ panelTab: 'design' })
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      set({ installError: { ...get().installError, [id]: message } })
+    } finally {
+      const { [id]: _done, ...remainingProgress } = get().installProgress
+      set({ installProgress: remainingProgress })
+    }
   },
 
   async uninstallTranslation(id) {
-    const translations = await bibleSource.uninstall(id)
-    set({ translations })
-    // Fall back to another installed translation if the active one was removed.
-    if (get().activeTranslationId === id) {
-      const fallback = translations.find((t) => t.installed)
-      if (fallback) await get().setTranslation(fallback.id)
+    await bibleSource.uninstall(id)
+    await get().refreshTranslations()
+
+    if (get().activeTranslationId !== id) return
+
+    // Fall back to another installed pack, or empty the reader if that was the
+    // last one, rather than leaving the UI pointed at something now gone.
+    const fallback = get().translations.find((t) => t.installed)
+    if (fallback) {
+      await get().setTranslation(fallback.id)
+    } else {
+      set({ activeTranslationId: '', books: [], chapterVerses: [], selection: [] })
     }
+  },
+
+  dismissInstallError(id) {
+    const { [id]: _cleared, ...rest } = get().installError
+    set({ installError: rest })
   },
 }))
