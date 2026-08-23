@@ -8,6 +8,8 @@ import { projectionChannel, outputWindow, defaultMonitor } from '../services/pro
 import type { MonitorInfo } from '../services/projection'
 import { isTauri } from '../services/platform'
 import { BUILTIN_THEMES } from '../data/presets'
+import { settingsStore } from '../services/settings'
+import { rehydrateBackground } from '../services/media'
 import { formatRange } from '../types/bible'
 
 /** One entry in the service order the operator builds before the meeting. */
@@ -102,6 +104,7 @@ interface AppState {
   patchTransition: (patch: Partial<Transition>) => void
   setBackground: (background: Background) => void
   saveThemeAsPreset: (name: string) => void
+  deleteTheme: (id: string) => void
 
   addToPlaylist: (verses?: Verse[]) => void
   removeFromPlaylist: (id: string) => void
@@ -162,15 +165,52 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ installProgress: { ...get().installProgress, [progress.translationId]: progress } })
     })
 
+    // Restore preferences before anything reads them, so the first render is
+    // already the operator's setup rather than defaults that flash and change.
+    const saved = await settingsStore.load()
+    if (saved) {
+      // An image background's URL is only valid for the run that made it, so
+      // every restored theme has its background resolved again from the stored
+      // path — or dropped to a colour if it cannot be recovered.
+      const [theme, ...customThemes] = await Promise.all(
+        [saved.theme, ...saved.customThemes].map(async (t) => ({
+          ...t,
+          background: await rehydrateBackground(t.background),
+        })),
+      )
+
+      set({
+        // Built-ins always come from code; saved presets are appended. A saved
+        // preset that shares an id with a built-in would be a bug, not a case
+        // to support, so ids are left as they are.
+        themes: [...BUILTIN_THEMES.map(cloneTheme), ...customThemes],
+        activeThemeId: saved.activeThemeId,
+        theme,
+        playlist: saved.playlist,
+        activeBookId: saved.activeBookId,
+        activeChapter: saved.activeChapter,
+        selectedMonitorId: saved.selectedMonitorId,
+      })
+
+      // Playlist ids must not collide with ids minted later this session.
+      idCounter = saved.playlist.length
+    }
+
     const translations = await bibleSource.listTranslations()
     set({ translations })
+
+    // Reopen the translation that was in use, but only if it is still
+    // installed — it may have been removed since, or the settings file may have
+    // come from a different machine.
+    const installed = translations.filter((t) => t.installed)
+    const remembered = installed.find((t) => t.id === saved?.activeTranslationId)
+    const target = remembered ?? installed[0]
 
     // A fresh desktop install has no packs yet. Leave the reader empty and let
     // the UI point the operator at the Bible Manager rather than crashing on a
     // translation that does not exist.
-    const installed = translations.filter((t) => t.installed)
-    if (installed.length > 0) {
-      await get().setTranslation(installed[0].id)
+    if (target) {
+      await get().setTranslation(target.id)
     } else {
       set({ activeTranslationId: '', books: [], chapterVerses: [], panelTab: 'library' })
     }
@@ -404,6 +444,30 @@ export const useAppStore = create<AppState>((set, get) => ({
     const id = `custom-${Date.now()}`
     const saved = { ...cloneTheme(get().theme), id, name }
     set({ themes: [...get().themes, saved], activeThemeId: id, theme: cloneTheme(saved) })
+  },
+
+  deleteTheme(id) {
+    const target = get().themes.find((t) => t.id === id)
+    // Built-ins come from code and would simply reappear on next launch.
+    if (!target || target.builtin) return
+
+    const themes = get().themes.filter((t) => t.id !== id)
+    set({ themes })
+
+    // Deleting the preset currently in use would leave the design panel
+    // pointing at nothing, so fall back to the first built-in.
+    if (get().activeThemeId === id) {
+      const fallback = themes[0]
+      set({ activeThemeId: fallback.id, theme: cloneTheme(fallback) })
+      get().publish()
+    }
+
+    // Playlist entries referencing it fall back to the active theme.
+    set({
+      playlist: get().playlist.map((item) =>
+        item.themeId === id ? { ...item, themeId: undefined } : item,
+      ),
+    })
   },
 
   addToPlaylist(verses) {

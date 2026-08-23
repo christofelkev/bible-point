@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useAppStore } from '../store/useAppStore'
+import { startAutosave } from '../store/persistence'
 import { TopBar } from '../components/control/TopBar'
 import { BibleNavigator } from '../components/control/BibleNavigator'
 import { VerseList } from '../components/control/VerseList'
@@ -9,7 +10,26 @@ import { RightPanel } from '../components/control/RightPanel'
 export function ControlWindow() {
   const init = useAppStore((s) => s.init)
 
-  useEffect(() => { void init() }, [init])
+  // Autosave starts only once hydration has finished; starting it earlier
+  // would schedule a write of the state that was just restored.
+  useEffect(() => {
+    let stop: (() => void) | undefined
+    // StrictMode runs this twice in development. `stop` is assigned only after
+    // init resolves, so without the flag the first cleanup would find it
+    // undefined and leave that subscription running forever.
+    let cancelled = false
+
+    void init().then(() => {
+      if (cancelled) return
+      stop = startAutosave()
+    })
+
+    return () => {
+      cancelled = true
+      stop?.()
+    }
+  }, [init])
+
   useProjectionShortcuts()
 
   return (

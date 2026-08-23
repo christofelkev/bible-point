@@ -1,7 +1,7 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowDownToLine, ArrowUpToLine,
-  FoldVertical, Save, Upload, Palette, Type as TypeIcon,
+  FoldVertical, Save, Upload, Palette, Trash2, Type as TypeIcon,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useAppStore } from '../../store/useAppStore'
@@ -11,6 +11,7 @@ import {
   Button, ColorField, Field, Section, Segmented, Select, Slider, Toggle,
 } from '../ui/controls'
 import type { Background } from '../../types/theme'
+import { importBackgroundImage } from '../../services/media'
 
 /** Everything that shapes the look of the output, grouped by what it affects. */
 export function DesignPanel() {
@@ -19,6 +20,7 @@ export function DesignPanel() {
   const activeThemeId = useAppStore((s) => s.activeThemeId)
   const applyTheme = useAppStore((s) => s.applyTheme)
   const saveThemeAsPreset = useAppStore((s) => s.saveThemeAsPreset)
+  const deleteTheme = useAppStore((s) => s.deleteTheme)
   const setBackground = useAppStore((s) => s.setBackground)
   const patchTypography = useAppStore((s) => s.patchTypography)
   const patchLayout = useAppStore((s) => s.patchLayout)
@@ -26,17 +28,22 @@ export function DesignPanel() {
   const patchTransition = useAppStore((s) => s.patchTransition)
 
   const fileRef = useRef<HTMLInputElement>(null)
+  const [imageError, setImageError] = useState<string | null>(null)
   const { background, overlay, typography: type, layout, transition } = theme
 
   /**
-   * Custom backgrounds are held as object URLs during frontend development.
-   * Under Tauri the file is copied into the app's media folder and the theme
-   * stores that path instead, so themes survive a restart.
+   * On desktop the file is copied into app storage so the theme still finds it
+   * after a restart; in the browser it can only be a temporary object URL.
+   * Either way the service decides, and this only has to report a failure.
    */
-  function onPickImage(file: File | undefined) {
+  async function onPickImage(file: File | undefined) {
     if (!file) return
-    const src = URL.createObjectURL(file)
-    setBackground({ kind: 'image', src, fit: 'cover', label: file.name })
+    setImageError(null)
+    try {
+      setBackground(await importBackgroundImage(file))
+    } catch (error) {
+      setImageError(error instanceof Error ? error.message : String(error))
+    }
   }
 
   function switchBackgroundKind(kind: Background['kind']) {
@@ -69,26 +76,45 @@ export function DesignPanel() {
       >
         <div className="grid grid-cols-3 gap-1.5">
           {themes.map((t) => (
-            <button
+            <div
               key={t.id}
-              onClick={() => applyTheme(t.id)}
-              title={t.name}
               className={clsx(
                 'group relative h-[52px] rounded-lg overflow-hidden border-2 transition-colors',
                 t.id === activeThemeId ? 'border-brand-500' : 'border-transparent hover:border-ink-600',
               )}
             >
-              <div className="absolute inset-0" style={{ background: backgroundCss(t.background) }} />
-              <span
-                className="absolute inset-0 grid place-items-center text-[13px] font-semibold"
-                style={{ color: t.typography.color, textShadow: '0 1px 4px rgba(0,0,0,.5)' }}
+              <button
+                onClick={() => applyTheme(t.id)}
+                title={t.name}
+                className="absolute inset-0 w-full h-full"
               >
-                Aa
-              </span>
-              <span className="absolute inset-x-0 bottom-0 bg-black/55 text-[8px] text-white/85 py-px truncate px-1">
-                {t.name}
-              </span>
-            </button>
+                <span className="absolute inset-0" style={{ background: backgroundCss(t.background) }} />
+                <span
+                  className="absolute inset-0 grid place-items-center text-[13px] font-semibold"
+                  style={{ color: t.typography.color, textShadow: '0 1px 4px rgba(0,0,0,.5)' }}
+                >
+                  Aa
+                </span>
+                <span className="absolute inset-x-0 bottom-0 bg-black/55 text-[8px] text-white/85 py-px truncate px-1">
+                  {t.name}
+                </span>
+              </button>
+
+              {/* Saved presets now survive restarts, so they need a way out.
+                  Built-ins have none — deleting one would only bring it back. */}
+              {!t.builtin && (
+                <button
+                  title={`Hapus preset ${t.name}`}
+                  onClick={() => {
+                    if (window.confirm(`Hapus preset "${t.name}"?`)) deleteTheme(t.id)
+                  }}
+                  className="absolute top-0.5 right-0.5 h-5 w-5 grid place-items-center rounded bg-black/60 text-white/70
+                             opacity-0 group-hover:opacity-100 hover:bg-red-500/80 hover:text-white transition-opacity"
+                >
+                  <Trash2 size={10} />
+                </button>
+              )}
+            </div>
           ))}
         </div>
       </Section>
@@ -180,8 +206,19 @@ export function DesignPanel() {
           type="file"
           accept="image/*"
           className="hidden"
-          onChange={(e) => { onPickImage(e.target.files?.[0]); e.target.value = '' }}
+          onChange={(e) => { void onPickImage(e.target.files?.[0]); e.target.value = '' }}
         />
+
+        {imageError && (
+          <p className="text-[10px] leading-relaxed text-red-300">{imageError}</p>
+        )}
+
+        {background.kind === 'image' && !background.path && (
+          <p className="text-[10px] leading-relaxed text-ink-400">
+            Di mode browser gambar tidak ikut tersimpan. Jalankan aplikasi desktop
+            agar background bertahan setelah aplikasi ditutup.
+          </p>
+        )}
 
         <Field label="Gelapkan" hint="scrim hitam">
           <Slider value={overlay.dim} min={0} max={0.85} step={0.05} onChange={(dim) => patchOverlay({ dim })} />
