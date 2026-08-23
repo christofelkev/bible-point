@@ -3,7 +3,9 @@ import type { Book, SearchResult, Translation, Verse } from '../types/bible'
 import type { Background, Theme, Typography, StageLayout, Overlay, Transition } from '../types/theme'
 import type { ProjectionMode, ProjectionState } from '../types/projection'
 import { bibleSource } from '../services/bible'
-import { projectionChannel } from '../services/projection'
+import { projectionChannel, outputWindow, defaultMonitor } from '../services/projection'
+import type { MonitorInfo } from '../services/projection'
+import { isTauri } from '../services/platform'
 import { BUILTIN_THEMES } from '../data/presets'
 import { formatRange } from '../types/bible'
 
@@ -48,6 +50,11 @@ interface AppState {
   liveVerses: Verse[]
   revision: number
   outputOpen: boolean
+  /** True inside the Tauri shell; the browser build hides desktop-only controls. */
+  isDesktop: boolean
+  monitors: MonitorInfo[]
+  /** Display the operator chose to project onto; null means "decide for me". */
+  selectedMonitorId: string | null
 
   // --- Service order -------------------------------------------------------
   playlist: PlaylistItem[]
@@ -73,8 +80,12 @@ interface AppState {
   goLive: (verses?: Verse[]) => void
   setMode: (mode: ProjectionMode) => void
   stepLive: (delta: number) => void
-  setOutputOpen: (open: boolean) => void
   publish: () => void
+
+  refreshMonitors: () => Promise<void>
+  setSelectedMonitor: (id: string) => void
+  openOutput: () => Promise<void>
+  closeOutput: () => Promise<void>
 
   applyTheme: (id: string) => void
   patchTheme: (patch: Partial<Theme>) => void
@@ -125,6 +136,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   liveVerses: [],
   revision: 0,
   outputOpen: false,
+  isDesktop: isTauri(),
+  monitors: [],
+  selectedMonitorId: null,
 
   playlist: [],
   activePlaylistId: null,
@@ -142,6 +156,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     // The output window may open at any time; answer its sync request with the
     // current snapshot so it never sits blank waiting for the next action.
     projectionChannel.onSyncRequest(() => get().publish())
+
+    // The window can also be closed from outside the app — the OS close button,
+    // or the shell tearing it down. Trust the controller, not our own flag.
+    outputWindow.onClosed(() => set({ outputOpen: false }))
+
+    await get().refreshMonitors()
   },
 
   async setTranslation(id) {
@@ -270,8 +290,32 @@ export const useAppStore = create<AppState>((set, get) => ({
     get().publish()
   },
 
-  setOutputOpen(open) {
-    set({ outputOpen: open })
+  async refreshMonitors() {
+    const monitors = await outputWindow.listMonitors()
+    const selected = get().selectedMonitorId
+    // Keep the operator's choice if that display is still attached; otherwise
+    // fall back to the projector guess so unplugging a screen is not fatal.
+    const stillPresent = selected != null && monitors.some((m) => m.id === selected)
+    set({
+      monitors,
+      selectedMonitorId: stillPresent ? selected : defaultMonitor(monitors)?.id ?? null,
+    })
+  },
+
+  setSelectedMonitor(id) {
+    set({ selectedMonitorId: id })
+  },
+
+  async openOutput() {
+    await get().refreshMonitors()
+    const opened = await outputWindow.open(get().selectedMonitorId ?? undefined)
+    set({ outputOpen: opened })
+    if (opened) get().publish()
+  },
+
+  async closeOutput() {
+    await outputWindow.close()
+    set({ outputOpen: false })
   },
 
   publish() {

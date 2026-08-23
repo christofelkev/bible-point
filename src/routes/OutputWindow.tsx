@@ -3,6 +3,7 @@ import type { ProjectionState } from '../types/projection'
 import { projectionChannel } from '../services/projection'
 import { VerseStage } from '../components/stage/VerseStage'
 import { BUILTIN_THEMES } from '../data/presets'
+import { isTauri } from '../services/platform'
 
 const INITIAL: ProjectionState = {
   mode: 'logo',
@@ -18,7 +19,9 @@ const INITIAL: ProjectionState = {
  */
 export function OutputWindow() {
   const [state, setState] = useState<ProjectionState>(INITIAL)
-  const [showHint, setShowHint] = useState(true)
+  // Under Tauri the window already opens borderless and fullscreen on the
+  // chosen display, so there is nothing to instruct the operator to do.
+  const [showHint, setShowHint] = useState(!isTauri())
 
   useEffect(() => {
     const unsubscribe = projectionChannel.subscribe(setState)
@@ -28,12 +31,11 @@ export function OutputWindow() {
     return unsubscribe
   }, [])
 
-  // The fullscreen hint is for the browser demo only; under Tauri the output
-  // window opens borderless on the chosen display and needs no instruction.
   useEffect(() => {
+    if (!showHint) return
     const timer = setTimeout(() => setShowHint(false), 6000)
     return () => clearTimeout(timer)
-  }, [])
+  }, [showHint])
 
   useEffect(() => {
     document.title = 'Bible Point — Output'

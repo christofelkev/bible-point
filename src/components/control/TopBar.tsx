@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
-import { Monitor, MonitorOff, Search, CornerDownLeft } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Search, CornerDownLeft } from 'lucide-react'
 import clsx from 'clsx'
 import { useAppStore } from '../../store/useAppStore'
-import { openOutputWindow } from '../../services/projection'
-import { Button, Select } from '../ui/controls'
+import { Select } from '../ui/controls'
+import { OutputButton } from './OutputButton'
 
 /**
  * The omnibox doubles as reference jump and full-text search.
@@ -19,12 +19,9 @@ export function TopBar() {
   const runSearch = useAppStore((s) => s.runSearch)
   const clearSearch = useAppStore((s) => s.clearSearch)
   const jumpToReference = useAppStore((s) => s.jumpToReference)
-  const outputOpen = useAppStore((s) => s.outputOpen)
-  const setOutputOpen = useAppStore((s) => s.setOutputOpen)
 
   const [query, setQuery] = useState('')
   const [flash, setFlash] = useState<'none' | 'miss'>('none')
-  const outputRef = useRef<Window | null>(null)
 
   const installed = translations.filter((t) => t.installed)
 
@@ -40,18 +37,6 @@ export function TopBar() {
     return () => clearTimeout(timer)
   }, [query, runSearch, clearSearch])
 
-  // Keep the button state honest if the operator closes the output window.
-  useEffect(() => {
-    if (!outputOpen) return
-    const timer = setInterval(() => {
-      if (outputRef.current?.closed) {
-        outputRef.current = null
-        setOutputOpen(false)
-      }
-    }, 800)
-    return () => clearInterval(timer)
-  }, [outputOpen, setOutputOpen])
-
   async function onSubmit() {
     const value = query.trim()
     if (!value) return
@@ -64,17 +49,6 @@ export function TopBar() {
       setFlash('miss')
       setTimeout(() => setFlash('none'), 600)
     }
-  }
-
-  function toggleOutput() {
-    if (outputOpen && outputRef.current && !outputRef.current.closed) {
-      outputRef.current.close()
-      outputRef.current = null
-      setOutputOpen(false)
-      return
-    }
-    outputRef.current = openOutputWindow()
-    setOutputOpen(Boolean(outputRef.current))
   }
 
   return (
@@ -117,10 +91,7 @@ export function TopBar() {
 
       <div className="flex-1" />
 
-      <Button variant={outputOpen ? 'solid' : 'brand'} onClick={toggleOutput}>
-        {outputOpen ? <MonitorOff size={13} /> : <Monitor size={13} />}
-        {outputOpen ? 'Tutup Output' : 'Buka Output'}
-      </Button>
+      <OutputButton />
     </header>
   )
 }
