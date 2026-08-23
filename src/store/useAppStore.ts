@@ -3,13 +3,14 @@ import type { Book, SearchResult, Translation, Verse } from '../types/bible'
 import type { Background, Theme, Typography, StageLayout, Overlay, Transition } from '../types/theme'
 import type { ProjectionMode, ProjectionState } from '../types/projection'
 import { bibleSource } from '../services/bible'
-import type { InstallProgress } from '../services/bible'
+import type { InstallProgress, SideloadMeta } from '../services/bible'
 import { projectionChannel, outputWindow, defaultMonitor } from '../services/projection'
 import type { MonitorInfo } from '../services/projection'
 import { isTauri } from '../services/platform'
 import { BUILTIN_THEMES } from '../data/presets'
 import { settingsStore } from '../services/settings'
-import { rehydrateBackground } from '../services/media'
+import { rehydrateTheme, pruneUnusedAssets } from '../services/media'
+import { exportPresets, importPresets } from '../services/presets'
 import { formatRange } from '../types/bible'
 
 /** One entry in the service order the operator builds before the meeting. */
@@ -117,6 +118,9 @@ interface AppState {
   installTranslation: (id: string) => Promise<void>
   uninstallTranslation: (id: string) => Promise<void>
   dismissInstallError: (id: string) => void
+  sideloadTranslation: (file: File, meta: SideloadMeta) => Promise<void>
+  exportThemePresets: () => Promise<string | null>
+  importThemePresets: () => Promise<{ added: number; skipped: number } | null>
 }
 
 let idCounter = 0
@@ -169,14 +173,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     // already the operator's setup rather than defaults that flash and change.
     const saved = await settingsStore.load()
     if (saved) {
-      // An image background's URL is only valid for the run that made it, so
-      // every restored theme has its background resolved again from the stored
-      // path — or dropped to a colour if it cannot be recovered.
+      // A stored file's URL is only valid for the run that made it, so every
+      // restored theme has its background and custom font resolved again from
+      // their stored paths — or dropped if they cannot be recovered.
       const [theme, ...customThemes] = await Promise.all(
-        [saved.theme, ...saved.customThemes].map(async (t) => ({
-          ...t,
-          background: await rehydrateBackground(t.background),
-        })),
+        [saved.theme, ...saved.customThemes].map(rehydrateTheme),
       )
 
       set({
@@ -224,6 +225,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     outputWindow.onClosed(() => set({ outputOpen: false }))
 
     await get().refreshMonitors()
+
+    // Files the operator tried and moved on from would otherwise pile up
+    // forever. Runs after hydration so every live reference is already known.
+    void pruneUnusedAssets([get().theme, ...get().themes])
   },
 
   async setTranslation(id) {
@@ -569,5 +574,42 @@ export const useAppStore = create<AppState>((set, get) => ({
   dismissInstallError(id) {
     const { [id]: _cleared, ...rest } = get().installError
     set({ installError: rest })
+  },
+
+  async sideloadTranslation(file, meta) {
+    await bibleSource.sideload(file, meta)
+    await get().refreshTranslations()
+
+    // First pack on a fresh machine: open it so the operator lands in the
+    // reader rather than being left staring at the empty state they just fixed.
+    if (!get().activeTranslationId) {
+      const installed = get().translations.find((t) => t.installed)
+      if (installed) {
+        await get().setTranslation(installed.id)
+        set({ panelTab: 'design' })
+      }
+    }
+  },
+
+  async exportThemePresets() {
+    return exportPresets(get().themes)
+  },
+
+  async importThemePresets() {
+    const result = await importPresets()
+    if (!result) return null
+
+    // Imported presets are added, never merged over existing ones: an operator
+    // who imports a colleague's file should not silently lose their own work.
+    // Colliding ids are re-minted so both copies survive.
+    const existing = new Set(get().themes.map((t) => t.id))
+    const added = result.themes.map((theme, i) => ({
+      ...theme,
+      id: existing.has(theme.id) ? `imported-${Date.now()}-${i}` : theme.id,
+      name: existing.has(theme.id) ? `${theme.name} (impor)` : theme.name,
+    }))
+
+    set({ themes: [...get().themes, ...added] })
+    return { added: added.length, skipped: result.skipped }
   },
 }))

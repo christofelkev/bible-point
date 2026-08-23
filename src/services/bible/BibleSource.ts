@@ -17,6 +17,16 @@ export interface InstallProgress {
   message?: string
 }
 
+/** Details a bare verse-per-line file cannot carry, so the operator supplies them. */
+export interface SideloadMeta {
+  id: string
+  name: string
+  abbrev: string
+  language: string
+  languageName: string
+  license: string
+}
+
 /**
  * The only way the UI is allowed to reach scripture.
  *
@@ -55,6 +65,15 @@ export interface BibleSource {
 
   /** Removes an installed translation and everything indexed from it. */
   uninstall(translationId: string): Promise<void>
+
+  /**
+   * Installs a translation from a file the operator supplies.
+   *
+   * The legitimate route for texts the catalog cannot carry. Browser mode has
+   * nowhere to store a pack, so it rejects with an explanation rather than
+   * pretending to succeed.
+   */
+  sideload(file: File, meta: SideloadMeta): Promise<void>
 
   /** Subscribe to installation progress. Returns an unsubscribe function. */
   onInstallProgress(handler: (progress: InstallProgress) => void): () => void

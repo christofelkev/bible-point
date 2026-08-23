@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
-import { AlertCircle, Check, Download, HardDrive, Search, Trash2, X } from 'lucide-react'
+import { AlertCircle, Check, Download, FileUp, HardDrive, Search, Trash2, X } from 'lucide-react'
 import clsx from 'clsx'
 import { useAppStore } from '../../store/useAppStore'
 import { Button } from '../ui/controls'
 import type { Translation } from '../../types/bible'
 import type { InstallPhase } from '../../services/bible'
+import { SideloadDialog } from './SideloadDialog'
 
 /**
  * The catalog can run to well over a thousand entries. Rendering all of them
@@ -38,7 +39,9 @@ export function LibraryPanel() {
   const uninstallTranslation = useAppStore((s) => s.uninstallTranslation)
   const dismissInstallError = useAppStore((s) => s.dismissInstallError)
 
+  const isDesktop = useAppStore((s) => s.isDesktop)
   const [query, setQuery] = useState('')
+  const [sideloadOpen, setSideloadOpen] = useState(false)
 
   const { installed, available, totalAvailable } = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -150,15 +153,26 @@ export function LibraryPanel() {
           )}
         </Group>
 
-        <div className="px-4 py-5 flex items-start gap-2 text-[10px] leading-relaxed text-ink-400">
-          <HardDrive size={12} className="shrink-0 mt-px" />
-          <p>
-            Katalog diambil dari eBible.org dan hanya memuat terjemahan yang
-            ditandai boleh didistribusikan ulang oleh penerbitnya. Terjemahan
-            berhak cipta lain tidak tersedia di sini.
-          </p>
+        <div className="px-4 py-5 space-y-3">
+          <div className="flex items-start gap-2 text-[10px] leading-relaxed text-ink-400">
+            <HardDrive size={12} className="shrink-0 mt-px" />
+            <p>
+              Katalog diambil dari eBible.org dan hanya memuat terjemahan yang
+              ditandai boleh didistribusikan ulang oleh penerbitnya. Terjemahan
+              berhak cipta seperti TB tidak ada di sini — pasang sendiri dari
+              salinanmu lewat tombol di bawah.
+            </p>
+          </div>
+
+          {isDesktop && (
+            <Button variant="solid" size="sm" className="w-full" onClick={() => setSideloadOpen(true)}>
+              <FileUp size={12} /> Pasang dari berkas
+            </Button>
+          )}
         </div>
       </div>
+
+      {sideloadOpen && <SideloadDialog onClose={() => setSideloadOpen(false)} />}
     </div>
   )
 }

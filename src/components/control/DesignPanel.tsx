@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowDownToLine, ArrowUpToLine,
-  FoldVertical, Save, Upload, Palette, Trash2, Type as TypeIcon,
+  FoldVertical, Save, Upload, Palette, Trash2, X, Share, FolderInput, Type as TypeIcon,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useAppStore } from '../../store/useAppStore'
@@ -10,8 +10,7 @@ import { backgroundCss } from '../stage/StageBackground'
 import {
   Button, ColorField, Field, Section, Segmented, Select, Slider, Toggle,
 } from '../ui/controls'
-import type { Background } from '../../types/theme'
-import { importBackgroundImage } from '../../services/media'
+import { importBackgroundFile, importFontFile } from '../../services/media'
 
 /** Everything that shapes the look of the output, grouped by what it affects. */
 export function DesignPanel() {
@@ -21,6 +20,8 @@ export function DesignPanel() {
   const applyTheme = useAppStore((s) => s.applyTheme)
   const saveThemeAsPreset = useAppStore((s) => s.saveThemeAsPreset)
   const deleteTheme = useAppStore((s) => s.deleteTheme)
+  const exportThemePresets = useAppStore((s) => s.exportThemePresets)
+  const importThemePresets = useAppStore((s) => s.importThemePresets)
   const setBackground = useAppStore((s) => s.setBackground)
   const patchTypography = useAppStore((s) => s.patchTypography)
   const patchLayout = useAppStore((s) => s.patchLayout)
@@ -28,7 +29,9 @@ export function DesignPanel() {
   const patchTransition = useAppStore((s) => s.patchTransition)
 
   const fileRef = useRef<HTMLInputElement>(null)
-  const [imageError, setImageError] = useState<string | null>(null)
+  const fontRef = useRef<HTMLInputElement>(null)
+  const [mediaError, setMediaError] = useState<string | null>(null)
+  const [presetNote, setPresetNote] = useState<string | null>(null)
   const { background, overlay, typography: type, layout, transition } = theme
 
   /**
@@ -36,20 +39,38 @@ export function DesignPanel() {
    * after a restart; in the browser it can only be a temporary object URL.
    * Either way the service decides, and this only has to report a failure.
    */
-  async function onPickImage(file: File | undefined) {
+  async function onPickBackground(file: File | undefined) {
     if (!file) return
-    setImageError(null)
+    setMediaError(null)
     try {
-      setBackground(await importBackgroundImage(file))
+      setBackground(await importBackgroundFile(file))
     } catch (error) {
-      setImageError(error instanceof Error ? error.message : String(error))
+      setMediaError(error instanceof Error ? error.message : String(error))
     }
   }
 
-  function switchBackgroundKind(kind: Background['kind']) {
-    if (kind === background.kind) return
-    if (kind === 'solid') setBackground({ kind: 'solid', color: '#0b1224' })
-    else if (kind === 'gradient') {
+  async function onPickFont(file: File | undefined) {
+    if (!file) return
+    setMediaError(null)
+    try {
+      patchTypography(await importFontFile(file))
+    } catch (error) {
+      setMediaError(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  /**
+   * Image and video are one choice to the operator — they pick a file and the
+   * app works out which it is — so the picker collapses them into "Media".
+   */
+  type BackgroundChoice = 'solid' | 'gradient' | 'media'
+  const backgroundChoice: BackgroundChoice =
+    background.kind === 'image' || background.kind === 'video' ? 'media' : background.kind
+
+  function switchBackgroundKind(choice: BackgroundChoice) {
+    if (choice === backgroundChoice) return
+    if (choice === 'solid') setBackground({ kind: 'solid', color: '#0b1224' })
+    else if (choice === 'gradient') {
       setBackground({
         kind: 'gradient', shape: 'linear', angle: 160,
         stops: [{ color: '#0b1224', at: 0 }, { color: '#1c2b52', at: 100 }],
@@ -62,16 +83,55 @@ export function DesignPanel() {
       <Section
         title="Preset"
         action={
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => {
-              const name = window.prompt('Nama preset baru', `${theme.name} Copy`)
-              if (name?.trim()) saveThemeAsPreset(name.trim())
-            }}
-          >
-            <Save size={11} /> Simpan
-          </Button>
+          <div className="flex items-center gap-0.5">
+            <Button
+              size="sm"
+              variant="ghost"
+              title="Bagikan preset ke komputer lain"
+              onClick={async () => {
+                setPresetNote(null)
+                try {
+                  const path = await exportThemePresets()
+                  if (path) setPresetNote(`Preset disimpan ke ${path}`)
+                } catch (e) {
+                  setPresetNote(e instanceof Error ? e.message : String(e))
+                }
+              }}
+            >
+              <Share size={11} />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              title="Muat preset dari berkas"
+              onClick={async () => {
+                setPresetNote(null)
+                try {
+                  const result = await importThemePresets()
+                  if (result) {
+                    setPresetNote(
+                      `${result.added} preset dimuat` +
+                        (result.skipped > 0 ? `, ${result.skipped} dilewati` : ''),
+                    )
+                  }
+                } catch (e) {
+                  setPresetNote(e instanceof Error ? e.message : String(e))
+                }
+              }}
+            >
+              <FolderInput size={11} />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                const name = window.prompt('Nama preset baru', `${theme.name} Copy`)
+                if (name?.trim()) saveThemeAsPreset(name.trim())
+              }}
+            >
+              <Save size={11} /> Simpan
+            </Button>
+          </div>
         }
       >
         <div className="grid grid-cols-3 gap-1.5">
@@ -117,17 +177,21 @@ export function DesignPanel() {
             </div>
           ))}
         </div>
+
+        {presetNote && (
+          <p className="text-[10px] leading-relaxed text-ink-400 break-all">{presetNote}</p>
+        )}
       </Section>
 
       <Section title="Background">
         <Field label="Jenis">
           <Segmented
-            value={background.kind}
+            value={backgroundChoice}
             onChange={switchBackgroundKind}
             options={[
               { value: 'solid', label: 'Solid' },
               { value: 'gradient', label: 'Gradien' },
-              { value: 'image', label: 'Gambar' },
+              { value: 'media', label: 'Media' },
             ]}
           />
         </Field>
@@ -180,12 +244,22 @@ export function DesignPanel() {
           </>
         )}
 
-        {background.kind === 'image' && (
+        {(background.kind === 'image' || background.kind === 'video') && (
           <>
-            <div className="relative h-24 rounded-lg overflow-hidden border border-ink-800">
-              <div className="absolute inset-0" style={{ background: backgroundCss(background) }} />
+            <div className="relative h-24 rounded-lg overflow-hidden border border-ink-800 bg-black">
+              {background.kind === 'video' ? (
+                <video
+                  src={background.src}
+                  className="absolute inset-0 w-full h-full"
+                  style={{ objectFit: background.fit }}
+                  autoPlay loop muted playsInline
+                />
+              ) : (
+                <div className="absolute inset-0" style={{ background: backgroundCss(background) }} />
+              )}
               <span className="absolute inset-x-0 bottom-0 bg-black/60 text-[10px] text-white/80 px-2 py-1 truncate">
-                {background.label ?? 'Gambar kustom'}
+                {background.kind === 'video' ? '🎬 ' : ''}
+                {background.label ?? 'Media kustom'}
               </span>
             </div>
             <Field label="Isi bingkai">
@@ -199,23 +273,23 @@ export function DesignPanel() {
         )}
 
         <Button variant="solid" size="sm" className="w-full" onClick={() => fileRef.current?.click()}>
-          <Upload size={12} /> Unggah gambar sendiri
+          <Upload size={12} /> Unggah gambar atau video
         </Button>
         <input
           ref={fileRef}
           type="file"
-          accept="image/*"
+          accept="image/*,video/mp4,video/webm"
           className="hidden"
-          onChange={(e) => { void onPickImage(e.target.files?.[0]); e.target.value = '' }}
+          onChange={(e) => { void onPickBackground(e.target.files?.[0]); e.target.value = '' }}
         />
 
-        {imageError && (
-          <p className="text-[10px] leading-relaxed text-red-300">{imageError}</p>
+        {mediaError && (
+          <p className="text-[10px] leading-relaxed text-red-300">{mediaError}</p>
         )}
 
-        {background.kind === 'image' && !background.path && (
+        {(background.kind === 'image' || background.kind === 'video') && !background.path && (
           <p className="text-[10px] leading-relaxed text-ink-400">
-            Di mode browser gambar tidak ikut tersimpan. Jalankan aplikasi desktop
+            Di mode browser berkas tidak ikut tersimpan. Jalankan aplikasi desktop
             agar background bertahan setelah aplikasi ditutup.
           </p>
         )}
@@ -230,13 +304,46 @@ export function DesignPanel() {
 
       <Section title="Tipografi">
         <Field label="Font">
-          <Select
-            className="flex-1 h-7"
-            value={type.fontFamily}
-            onChange={(fontFamily) => patchTypography({ fontFamily })}
-            options={FONT_OPTIONS.map((f) => ({ value: f.value, label: f.label }))}
-          />
+          {type.fontSrc ? (
+            <div className="flex-1 flex items-center gap-2 min-w-0">
+              <span
+                className="flex-1 min-w-0 h-7 px-2 rounded-md bg-ink-900 border border-ink-800 text-xs text-white flex items-center truncate"
+                title={type.fontFamily}
+                style={{ fontFamily: `"${type.fontFamily}", sans-serif` }}
+              >
+                {type.fontFamily}
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                title="Kembali ke font bawaan"
+                onClick={() =>
+                  patchTypography({ fontFamily: 'Inter', fontSrc: undefined, fontPath: undefined })
+                }
+              >
+                <X size={12} />
+              </Button>
+            </div>
+          ) : (
+            <Select
+              className="flex-1 h-7"
+              value={type.fontFamily}
+              onChange={(fontFamily) => patchTypography({ fontFamily })}
+              options={FONT_OPTIONS.map((f) => ({ value: f.value, label: f.label }))}
+            />
+          )}
         </Field>
+
+        <Button variant="solid" size="sm" className="w-full" onClick={() => fontRef.current?.click()}>
+          <Upload size={12} /> Unggah font sendiri
+        </Button>
+        <input
+          ref={fontRef}
+          type="file"
+          accept=".ttf,.otf,.woff,.woff2"
+          className="hidden"
+          onChange={(e) => { void onPickFont(e.target.files?.[0]); e.target.value = '' }}
+        />
         <Field label="Ukuran" hint="% tinggi layar">
           <Slider value={type.size} min={2} max={14} step={0.1} onChange={(size) => patchTypography({ size })} />
         </Field>

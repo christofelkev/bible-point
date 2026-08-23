@@ -1,5 +1,5 @@
 import type { Book, SearchResult, Translation, Verse } from '../../types/bible'
-import type { BibleSource, InstallProgress } from './BibleSource'
+import type { BibleSource, InstallProgress, SideloadMeta } from './BibleSource'
 import { highlightRanges } from './BibleSource'
 import { namedBooks, bookNameFor } from '../../data/bibleMeta'
 import { parseReference } from './parseReference'
@@ -86,6 +86,12 @@ export class TauriBibleSource implements BibleSource {
   async uninstall(translationId: string): Promise<void> {
     const { invoke } = await import('@tauri-apps/api/core')
     await invoke('uninstall_translation', { translationId })
+  }
+
+  async sideload(file: File, meta: SideloadMeta): Promise<void> {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    await invoke('sideload_translation', { fileName: file.name, bytes, meta })
   }
 
   onInstallProgress(handler: (progress: InstallProgress) => void): () => void {

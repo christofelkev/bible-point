@@ -127,6 +127,12 @@ export class MockBibleSource implements BibleSource {
     await delay(null)
   }
 
+  async sideload(): Promise<void> {
+    throw new Error(
+      'Memasang dari berkas hanya tersedia di aplikasi desktop, karena mode browser tidak punya tempat menyimpan pack.',
+    )
+  }
+
   onInstallProgress(handler: (progress: InstallProgress) => void): () => void {
     this.progressHandlers.add(handler)
     return () => this.progressHandlers.delete(handler)

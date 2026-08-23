@@ -2,7 +2,7 @@ import { isTauri } from '../platform'
 import { MockBibleSource } from './MockBibleSource'
 import { TauriBibleSource } from './TauriBibleSource'
 
-export type { BibleSource, InstallProgress, InstallPhase } from './BibleSource'
+export type { BibleSource, InstallProgress, InstallPhase, SideloadMeta } from './BibleSource'
 export { highlightRanges } from './BibleSource'
 export { parseReference } from './parseReference'
 export { MockBibleSource } from './MockBibleSource'
