@@ -2,7 +2,10 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Permissions shared by the control window and the projection output window.",
-  "windows": ["main", "output"],
+  "windows": [
+    "main",
+    "output"
+  ],
   "permissions": [
     "core:default",
     "core:webview:allow-create-webview-window",
@@ -21,6 +24,9 @@
     "core:window:allow-set-skip-taskbar",
     "core:window:allow-set-cursor-visible",
     "core:window:allow-set-title",
-    "core:window:allow-start-dragging"
+    "core:window:allow-start-dragging",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-message"
   ]
 }

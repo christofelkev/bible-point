@@ -60,6 +60,28 @@ pub async fn download(app: &AppHandle, translation_id: &str) -> Result<Vec<u8>, 
     Ok(bytes)
 }
 
+/// Reads verse-per-line text from a file the operator supplied directly.
+///
+/// Sideloading is the legitimate route for translations the catalog does not
+/// carry — a church's own licensed copy, or a text with no online distribution
+/// at all. Both shapes people actually have are accepted: an eBible-style zip,
+/// or the plain verse-per-line text on its own.
+pub fn read_local_pack(bytes: &[u8], file_name: &str) -> Result<String, String> {
+    // Zip archives begin with the local file header signature "PK\x03\x04";
+    // sniffing the contents is more reliable than trusting the file extension.
+    let is_zip = bytes.starts_with(b"PK\x03\x04");
+
+    if is_zip {
+        return extract_vpl(bytes, file_name);
+    }
+
+    let text = String::from_utf8_lossy(bytes).into_owned();
+    if text.trim().is_empty() {
+        return Err("berkas kosong".into());
+    }
+    Ok(text)
+}
+
 /// Pulls the verse-per-line text out of the downloaded archive.
 ///
 /// eBible packs the same text in several formats; the `.txt` member is the
@@ -68,10 +90,18 @@ pub fn extract_vpl(archive: &[u8], translation_id: &str) -> Result<String, Strin
     let mut zip = zip::ZipArchive::new(Cursor::new(archive))
         .map_err(|e| format!("arsip rusak: {e}"))?;
 
-    let name = (0..zip.len())
+    let names: Vec<String> = (0..zip.len())
         .filter_map(|i| zip.by_index(i).ok().map(|f| f.name().to_string()))
-        .find(|n| n.ends_with("_vpl.txt") || n == &format!("{translation_id}.txt"))
-        .ok_or_else(|| "arsip tidak memuat berkas verse-per-line".to_string())?;
+        .collect();
+
+    // Prefer eBible's own naming; fall back to any .txt so a zip assembled by
+    // hand still works when someone sideloads one.
+    let name = names
+        .iter()
+        .find(|n| n.ends_with("_vpl.txt") || *n == &format!("{translation_id}.txt"))
+        .or_else(|| names.iter().find(|n| n.to_ascii_lowercase().ends_with(".txt")))
+        .cloned()
+        .ok_or_else(|| "arsip tidak memuat berkas teks verse-per-line".to_string())?;
 
     let mut file = zip.by_name(&name).map_err(|e| format!("gagal membuka {name}: {e}"))?;
     let mut raw = Vec::new();
@@ -254,6 +284,51 @@ mod tests {
         let out = parse_vpl("JOH 3:16 Karena begini: Allah mengasihi dunia.\n");
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].text, "Karena begini: Allah mengasihi dunia.");
+    }
+
+    /// Builds a minimal zip in memory so the sideload path can be tested
+    /// without a fixture file on disk.
+    fn zip_with(name: &str, body: &str) -> Vec<u8> {
+        use std::io::Write;
+        let mut buffer = Cursor::new(Vec::new());
+        {
+            let mut writer = zip::ZipWriter::new(&mut buffer);
+            writer
+                .start_file(name, zip::write::SimpleFileOptions::default())
+                .unwrap();
+            writer.write_all(body.as_bytes()).unwrap();
+            writer.finish().unwrap();
+        }
+        buffer.into_inner()
+    }
+
+    #[test]
+    fn reads_a_sideloaded_plain_text_file() {
+        let body = "JOH 3:16 Karena Allah mengasihi dunia.
+";
+        let text = read_local_pack(body.as_bytes(), "tb.txt").unwrap();
+        let verses = parse_vpl(&text);
+        assert_eq!(verses.len(), 1);
+        assert_eq!(verses[0].book_id, "JHN");
+    }
+
+    #[test]
+    fn reads_a_sideloaded_zip_by_sniffing_its_contents() {
+        // Deliberately not named *_vpl.txt, and the archive extension is wrong,
+        // because operators hand over whatever they happen to have.
+        let archive = zip_with("my-bible.txt", "PHI 4:13 Segala perkara dapat kutanggung.
+");
+        let text = read_local_pack(&archive, "whatever.dat").unwrap();
+        let verses = parse_vpl(&text);
+        assert_eq!(verses.len(), 1);
+        assert_eq!(verses[0].book_id, "PHP");
+    }
+
+    #[test]
+    fn rejects_an_empty_sideload() {
+        assert!(read_local_pack(b"   
+
+", "empty.txt").is_err());
     }
 
     #[test]

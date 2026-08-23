@@ -30,6 +30,7 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 csv = "1"
 futures-util = "0.3"
+tauri-plugin-dialog = "2.7.2"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread"] }
