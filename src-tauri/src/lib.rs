@@ -1,7 +1,9 @@
 pub mod catalog;
 pub mod db;
 pub mod install;
+pub mod media;
 pub mod model;
+pub mod settings;
 
 use std::collections::HashSet;
 use std::sync::Mutex;
@@ -130,6 +132,30 @@ async fn install_translation(
         .ok_or_else(|| "pemasangan selesai tetapi terjemahan tidak ditemukan".into())
 }
 
+/// Reads persisted UI state. Returns null the first time the app is opened.
+#[tauri::command]
+fn load_settings(app: AppHandle) -> Result<Option<String>, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    settings::load(&settings::path(dir))
+}
+
+#[tauri::command]
+fn save_settings(app: AppHandle, contents: String) -> Result<(), String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    settings::save(&settings::path(dir), &contents)
+}
+
+/// Copies a chosen background image into app storage, returning its path.
+///
+/// The frontend then renders it through the asset protocol, so the reference
+/// survives a restart where a browser object URL would not.
+#[tauri::command]
+fn import_background(app: AppHandle, file_name: String, bytes: Vec<u8>) -> Result<String, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let path = media::import_background(&media::dir(dir), &file_name, &bytes)?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 fn uninstall_translation(db: State<'_, Db>, translation_id: String) -> Result<(), String> {
     let mut conn = db.0.lock().map_err(|_| "basis data sedang sibuk".to_string())?;
@@ -175,6 +201,9 @@ pub fn run() {
             search_verses,
             install_translation,
             uninstall_translation,
+            load_settings,
+            save_settings,
+            import_background,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
