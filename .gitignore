@@ -1,0 +1,35 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+dist-ssr
+*.local
+
+# Tauri build output (fase 2)
+src-tauri/target
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Dokumentasi tidak ikut di-commit (permintaan pemilik project).
+# PRD, arsitektur, dan progress.md hidup lokal saja.
+docs/
+*.md
