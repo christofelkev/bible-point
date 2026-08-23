@@ -22,11 +22,23 @@ export interface GradientBackground {
 
 export interface ImageBackground {
   kind: 'image'
-  /** Object URL, data URL, or file path once running under Tauri. */
+  /**
+   * A URL the stage can render right now.
+   *
+   * Not stable across restarts: in the browser it is an object URL that dies
+   * with the page, and under Tauri it is an asset URL derived from `path`.
+   * Persistence relies on `path`, never on this.
+   */
   src: string
   fit: 'cover' | 'contain'
   /** Optional descriptive name shown in the design panel. */
   label?: string
+  /**
+   * Location of the app's own copy of the image, on desktop only.
+   *
+   * This is what survives a restart; `src` is recomputed from it on load.
+   */
+  path?: string
 }
 
 export type Background = SolidBackground | GradientBackground | ImageBackground
@@ -82,6 +94,11 @@ export interface Transition {
 export interface Theme {
   id: string
   name: string
+  /**
+   * True for presets defined in code. They are never persisted — they ship with
+   * the app and may change between versions — while operator-created presets are.
+   */
+  builtin?: boolean
   background: Background
   overlay: Overlay
   typography: Typography

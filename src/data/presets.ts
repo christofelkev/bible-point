@@ -28,6 +28,7 @@ export const BUILTIN_THEMES: Theme[] = [
   {
     id: 'midnight',
     name: 'Midnight',
+    builtin: true,
     background: {
       kind: 'gradient', shape: 'linear', angle: 160,
       stops: [{ color: '#0b1224', at: 0 }, { color: '#1c2b52', at: 55 }, { color: '#0a0f1e', at: 100 }],
@@ -40,6 +41,7 @@ export const BUILTIN_THEMES: Theme[] = [
   {
     id: 'sunrise',
     name: 'Sunrise',
+    builtin: true,
     background: {
       kind: 'gradient', shape: 'linear', angle: 135,
       stops: [{ color: '#f7b267', at: 0 }, { color: '#e8646a', at: 52 }, { color: '#7b2d6b', at: 100 }],
@@ -52,6 +54,7 @@ export const BUILTIN_THEMES: Theme[] = [
   {
     id: 'parchment',
     name: 'Parchment',
+    builtin: true,
     background: {
       kind: 'gradient', shape: 'radial', angle: 0,
       stops: [{ color: '#faf3e3', at: 0 }, { color: '#e8dcc0', at: 100 }],
@@ -67,6 +70,7 @@ export const BUILTIN_THEMES: Theme[] = [
   {
     id: 'stage-black',
     name: 'Stage Black',
+    builtin: true,
     background: { kind: 'solid', color: '#000000' },
     overlay: { dim: 0, blur: 0 },
     typography: { ...baseTypography, size: 6.8, weight: 700, shadow: 0, letterSpacing: -0.5 },
@@ -76,6 +80,7 @@ export const BUILTIN_THEMES: Theme[] = [
   {
     id: 'forest',
     name: 'Forest',
+    builtin: true,
     background: {
       kind: 'gradient', shape: 'linear', angle: 195,
       stops: [{ color: '#14372e', at: 0 }, { color: '#0b201b', at: 100 }],
@@ -88,6 +93,7 @@ export const BUILTIN_THEMES: Theme[] = [
   {
     id: 'ivory',
     name: 'Ivory',
+    builtin: true,
     background: { kind: 'solid', color: '#f5f5f2' },
     overlay: { dim: 0, blur: 0 },
     typography: { ...baseTypography, color: '#16181d', weight: 600, shadow: 0, size: 5.9 },
