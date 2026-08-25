@@ -119,8 +119,8 @@ redistribute it, so do not bundle one when sharing this app with another church.
 Download the latest installer from the
 [Releases](https://github.com/christofelkev/bible-point/releases) page:
 
-- **`Bible Point_x.y.z_x64-setup.exe`** — NSIS installer, smaller download.
-- **`Bible Point_x.y.z_x64_en-US.msi`** — MSI, for deployment via Group Policy.
+- **`Bible.Point_x.y.z_x64-setup.exe`** — NSIS installer, smaller download.
+- **`Bible.Point_x.y.z_x64_en-US.msi`** — MSI, for deployment via Group Policy.
 
 Requires Windows 10 or 11. WebView2 ships with current Windows; the installer
 fetches it if missing.
