@@ -447,7 +447,11 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   saveThemeAsPreset(name) {
     const id = `custom-${Date.now()}`
-    const saved = { ...cloneTheme(get().theme), id, name }
+    // The working theme is usually a clone of a built-in and carries its
+    // `builtin` flag. Copied through, that flag would exclude the new preset
+    // from persistence, export and deletion at once — the operator would save
+    // a preset, see it appear, and find it gone after a restart.
+    const saved = { ...cloneTheme(get().theme), id, name, builtin: undefined }
     set({ themes: [...get().themes, saved], activeThemeId: id, theme: cloneTheme(saved) })
   },
 
