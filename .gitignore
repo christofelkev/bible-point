@@ -33,3 +33,6 @@ lerna-debug.log*
 # PRD, arsitektur, dan progress.md hidup lokal saja.
 docs/
 *.md
+
+# README ikut di-commit: ini halaman depan repo publik.
+!README.md
