@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!--
+    Bible Point application icon.
+
+    Source of truth for every generated size. Regenerate the platform icons with:
+        npx tauri icon app-icon.svg
+
+    Designed to survive 16px: the open book is one solid high-contrast shape, and
+    the projected beam behind it is soft enough that it reads as a glow rather
+    than turning into noise when the detail is lost.
+  -->
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e2a4d"/>
+      <stop offset="0.55" stop-color="#121a30"/>
+      <stop offset="1" stop-color="#080b14"/>
+    </linearGradient>
+
+    <linearGradient id="page" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbbf5c"/>
+      <stop offset="1" stop-color="#e08f1c"/>
+    </linearGradient>
+
+    <linearGradient id="beam" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#fbbf5c" stop-opacity="0.42"/>
+      <stop offset="0.55" stop-color="#f0a02a" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#f0a02a" stop-opacity="0"/>
+    </linearGradient>
+
+    <radialGradient id="glow" cx="0.5" cy="0.44" r="0.42">
+      <stop offset="0" stop-color="#f0a02a" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#f0a02a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Rounded plate. Transparent corners so it sits correctly on any surface. -->
+  <rect width="1024" height="1024" rx="224" ry="224" fill="url(#plate)"/>
+
+  <!-- Light thrown from the page, the app's whole purpose in one shape. -->
+  <ellipse cx="512" cy="470" rx="352" ry="272" fill="url(#glow)"/>
+  <path d="M 448 464 L 576 464 L 730 92 L 294 92 Z" fill="url(#beam)"/>
+
+  <!-- Open book. Outer edges curve so it reads as pages, not a folded card. -->
+  <path d="M 512 452 C 420 414, 280 382, 150 388 L 150 636 C 280 630, 420 660, 512 700 Z"
+        fill="url(#page)"/>
+  <path d="M 512 452 C 604 414, 744 382, 874 388 L 874 636 C 744 630, 604 660, 512 700 Z"
+        fill="url(#page)"/>
+
+  <!-- Spine: a gap rather than a line, so it holds at small sizes. -->
+  <path d="M 512 452 L 512 700" stroke="#0c1120" stroke-width="30" stroke-linecap="round"
+        opacity="0.85"/>
+
+  <!-- Text lines. Detail that enriches the large sizes and vanishes gracefully. -->
+  <g stroke="#8a5a10" stroke-width="15" stroke-linecap="round" opacity="0.45">
+    <path d="M 230 472 C 318 472, 396 490, 454 510"/>
+    <path d="M 230 546 C 318 546, 396 564, 454 584"/>
+    <path d="M 794 472 C 706 472, 628 490, 570 510"/>
+    <path d="M 794 546 C 706 546, 628 564, 570 584"/>
+  </g>
+</svg>
