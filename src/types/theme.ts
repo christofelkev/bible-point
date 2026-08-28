@@ -115,6 +115,14 @@ export interface StageLayout {
   /** Reference size relative to the verse size, e.g. 0.4 = 40%. */
   referenceScale: number
   showTranslation: boolean
+  /**
+   * Shrink the text until it fits the screen.
+   *
+   * Without this a long verse at a large size is silently clipped by the stage,
+   * and the congregation sees a sentence cut off mid-word. Optional so themes
+   * saved before it existed default to on, which is the safe behaviour.
+   */
+  autoFit?: boolean
 }
 
 export type TransitionKind = 'none' | 'fade' | 'slide-up' | 'zoom'

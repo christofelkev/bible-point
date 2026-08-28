@@ -1,8 +1,38 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ProjectionState } from '../../types/projection'
 import { formatRange } from '../../types/bible'
 import { fontStack } from '../../data/presets'
 import { StageBackground } from './StageBackground'
+
+/**
+ * Never shrink past this. Text this much smaller than the operator asked for is
+ * unreadable from the back of a room anyway, so clipping the remainder is the
+ * lesser failure and the size they set stays recognisable.
+ */
+const MIN_FIT = 0.45
+
+/**
+ * Hard ceiling on measuring passes.
+ *
+ * The measuring effect runs after every render and can call setState, so its
+ * termination rests on the search converging. A cap makes that guarantee
+ * structural instead: whatever the text or the font does, the loop stops.
+ */
+const MAX_FIT_PASSES = 14
+
+/** Stop searching once the bracket is this tight; further passes buy nothing. */
+const FIT_PRECISION = 0.015
+
+interface FitSearch {
+  /** Largest scale known to fit. */
+  lo: number
+  /** Smallest scale known to overflow. */
+  hi: number
+  current: number
+  settled: boolean
+}
+
+const FIT_START: FitSearch = { lo: MIN_FIT, hi: 1, current: 1, settled: false }
 
 interface Props {
   state: ProjectionState
@@ -33,6 +63,82 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
     return () => cancelAnimationFrame(frame)
   }, [revision])
 
+  const flowRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+
+  /**
+   * Multiplier applied to every type size so a long verse fits the screen.
+   *
+   * Derived, never configured: it depends on this verse in this theme at this
+   * screen size, so it is recomputed rather than stored on the Theme.
+   */
+  const [search, setSearch] = useState<FitSearch>(FIT_START)
+  const passes = useRef(0)
+  const fit = search.current
+
+  // Start from the operator's chosen size again whenever what is on screen
+  // changes, so a short verse after a long one is not left shrunken.
+  useLayoutEffect(() => {
+    passes.current = 0
+    setSearch(FIT_START)
+  }, [revision, theme, verses])
+
+  /**
+   * Binary search for the largest scale that still fits.
+   *
+   * A single proportional guess undershoots badly: shrinking the text also
+   * makes it wrap onto fewer lines, so one pass can land at half the size when
+   * ninety percent would have fitted — and text smaller than it needs to be is
+   * exactly what this feature exists to prevent. Bracketing instead converges
+   * on the real limit in about six passes.
+   *
+   * All passes run inside layout effects, so they complete before the browser
+   * paints and the operator never sees the intermediate sizes.
+   */
+  useLayoutEffect(() => {
+    if (theme.layout.autoFit === false || search.settled) return
+    if (passes.current >= MAX_FIT_PASSES) {
+      setSearch((s) => ({ ...s, current: s.lo, settled: true }))
+      return
+    }
+
+    const flow = flowRef.current
+    const content = contentRef.current
+    if (!flow || !content) return
+
+    const style = getComputedStyle(flow)
+    const available =
+      flow.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)
+    if (available <= 0) return
+
+    passes.current += 1
+    const fits = content.scrollHeight <= available + 0.5
+    const lo = fits ? search.current : search.lo
+    const hi = fits ? search.hi : search.current
+
+    // Settle on `lo`, the largest size actually measured as fitting. Settling on
+    // the midpoint would mean shipping a size that was never verified.
+    if (hi - lo < FIT_PRECISION) {
+      setSearch({ lo, hi, current: lo, settled: true })
+      return
+    }
+
+    setSearch({ lo, hi, current: (lo + hi) / 2, settled: false })
+  })
+
+  // The same theme needs a different fit on a 348px preview and a 4K projector,
+  // so search again whenever the stage itself changes size.
+  useLayoutEffect(() => {
+    const flow = flowRef.current
+    if (!flow || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => {
+      passes.current = 0
+      setSearch(FIT_START)
+    })
+    observer.observe(flow)
+    return () => observer.disconnect()
+  }, [])
+
   if (mode === 'black') {
     return <div className="absolute inset-0 bg-black" />
   }
@@ -44,6 +150,11 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
   const justify =
     layout.verticalAlign === 'top' ? 'flex-start'
     : layout.verticalAlign === 'bottom' ? 'flex-end'
+    : 'center'
+
+  const crossAlign =
+    layout.align === 'left' ? 'flex-start'
+    : layout.align === 'right' ? 'flex-end'
     : 'center'
 
   const textShadow = type.shadow > 0
@@ -82,7 +193,7 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
     <div
       className="shrink-0"
       style={{
-        fontSize: `${type.size * layout.referenceScale}cqh`,
+        fontSize: `${type.size * layout.referenceScale * fit}cqh`,
         opacity: 0.72,
         letterSpacing: '0.06em',
         fontWeight: 500,
@@ -114,13 +225,11 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
 
       {showText && (
         <div
+          ref={flowRef}
           className="absolute inset-0 flex flex-col"
           style={{
             justifyContent: justify,
-            alignItems:
-              layout.align === 'left' ? 'flex-start'
-              : layout.align === 'right' ? 'flex-end'
-              : 'center',
+            alignItems: crossAlign,
             padding: `${layout.padding}cqh ${layout.padding}cqh`,
             color: type.color,
             fontFamily: type.fontSrc
@@ -130,12 +239,25 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
             ...enterStyle,
           }}
         >
+          {/* One wrapper so the whole block can be measured at once. It must not
+              shrink: a squashed flex item would report the height it was forced
+              into rather than the height the text actually needs. */}
+          <div
+            ref={contentRef}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: crossAlign,
+              flexShrink: 0,
+              maxWidth: '100%',
+            }}
+          >
           {layout.referencePosition === 'top' && referenceBlock}
 
           <div
             style={{
               maxWidth: `${layout.maxWidth}cqw`,
-              fontSize: `${type.size}cqh`,
+              fontSize: `${type.size * fit}cqh`,
               fontWeight: type.weight,
               lineHeight: type.lineHeight,
               letterSpacing: `${type.letterSpacing}px`,
@@ -161,6 +283,7 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
           </div>
 
           {layout.referencePosition === 'bottom' && referenceBlock}
+          </div>
         </div>
       )}
 

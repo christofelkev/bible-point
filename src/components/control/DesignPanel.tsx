@@ -404,6 +404,17 @@ export function DesignPanel() {
         <Field label="Lebar teks">
           <Slider value={layout.maxWidth} min={40} max={100} suffix="%" onChange={(maxWidth) => patchLayout({ maxWidth })} />
         </Field>
+        <Field label="Muat otomatis" hint="kecilkan bila panjang">
+          <Toggle
+            checked={layout.autoFit !== false}
+            onChange={(autoFit) => patchLayout({ autoFit })}
+          />
+        </Field>
+        {layout.autoFit === false && (
+          <p className="text-[10px] leading-relaxed text-ink-400">
+            Ayat yang lebih panjang dari layar akan terpotong.
+          </p>
+        )}
         <Field label="Referensi">
           <Segmented
             value={layout.referencePosition}

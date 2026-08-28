@@ -22,6 +22,7 @@ const baseLayout = {
   referencePosition: 'bottom' as const,
   referenceScale: 0.42,
   showTranslation: true,
+  autoFit: true,
 }
 
 export const BUILTIN_THEMES: Theme[] = [
