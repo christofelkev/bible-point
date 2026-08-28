@@ -77,7 +77,8 @@ interface AppState {
   init: () => Promise<void>
   setTranslation: (id: string) => Promise<void>
   openChapter: (bookId: string, chapter: number) => Promise<void>
-  stepChapter: (delta: number) => Promise<void>
+  /** Returns false when there is no neighbouring chapter to move to. */
+  stepChapter: (delta: number) => Promise<boolean>
 
   toggleVerse: (verse: number, extend: boolean) => void
   selectOnly: (verse: number) => void
@@ -89,7 +90,7 @@ interface AppState {
 
   goLive: (verses?: Verse[]) => void
   setMode: (mode: ProjectionMode) => void
-  stepLive: (delta: number) => void
+  stepLive: (delta: number) => Promise<void>
   publish: () => void
 
   refreshMonitors: () => Promise<void>
@@ -259,19 +260,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   async stepChapter(delta) {
     const { books, activeBookId, activeChapter } = get()
     const book = books.find((b) => b.id === activeBookId)
-    if (!book) return
+    if (!book) return false
 
     const target = activeChapter + delta
     if (target >= 1 && target <= book.chapterCount) {
       await get().openChapter(activeBookId, target)
-      return
+      return true
     }
 
     // Roll over into the neighbouring book so paging never dead-ends.
     const index = books.findIndex((b) => b.id === activeBookId)
     const neighbour = books[index + delta]
-    if (!neighbour) return
+    if (!neighbour) return false
+
     await get().openChapter(neighbour.id, delta > 0 ? 1 : neighbour.chapterCount)
+    return true
   },
 
   toggleVerse(verse, extend) {
@@ -347,25 +350,43 @@ export const useAppStore = create<AppState>((set, get) => ({
     get().publish()
   },
 
-  stepLive(delta) {
-    const { liveVerses, chapterVerses, revision } = get()
+  async stepLive(delta) {
+    const { liveVerses, chapterVerses } = get()
     if (liveVerses.length === 0) return
 
     // Step by the size of the current block, keeping multi-verse slides intact.
     const size = liveVerses.length
-    const firstNumber = liveVerses[0].verse
-    const targetStart = firstNumber + delta * size
+    const targetStart = liveVerses[0].verse + delta * size
 
-    const next = chapterVerses.filter(
+    let next = chapterVerses.filter(
       (v) => v.verse >= targetStart && v.verse < targetStart + size,
     )
-    if (next.length === 0) return
+
+    // Running off the end of a chapter used to do nothing at all, which left
+    // the operator stranded mid-service whenever a reading crossed a chapter
+    // boundary — they had to leave the transport, find the next chapter, and
+    // reselect by hand while the congregation waited.
+    if (next.length === 0) {
+      const bookId = get().activeBookId
+      const chapter = get().activeChapter
+      if (!(await get().stepChapter(delta))) return
+
+      const fresh = get().chapterVerses
+      next = delta > 0 ? fresh.slice(0, size) : fresh.slice(-size)
+
+      // A chapter with no readable verses would otherwise strand the operator
+      // somewhere they did not ask to be, so put them back.
+      if (next.length === 0) {
+        await get().openChapter(bookId, chapter)
+        return
+      }
+    }
 
     set({
       liveVerses: next,
       selection: next.map((v) => v.verse),
       mode: 'live',
-      revision: revision + 1,
+      revision: get().revision + 1,
     })
     get().publish()
   },
