@@ -5,10 +5,12 @@ import { TopBar } from '../components/control/TopBar'
 import { BibleNavigator } from '../components/control/BibleNavigator'
 import { VerseList } from '../components/control/VerseList'
 import { RightPanel } from '../components/control/RightPanel'
+import { LiveWorkspace } from '../components/live/LiveWorkspace'
 
 /** The operator's window: browse, select, style, project. */
 export function ControlWindow() {
   const init = useAppStore((s) => s.init)
+  const workspaceMode = useAppStore((s) => s.workspaceMode)
 
   // Autosave starts only once hydration has finished; starting it earlier
   // would schedule a write of the state that was just restored.
@@ -36,8 +38,14 @@ export function ControlWindow() {
     <div className="h-full flex flex-col">
       <TopBar />
       <div className="flex-1 min-h-0 flex">
-        <BibleNavigator />
-        <VerseList />
+        {workspaceMode === 'bible' ? (
+          <>
+            <BibleNavigator />
+            <VerseList />
+          </>
+        ) : (
+          <LiveWorkspace />
+        )}
         <RightPanel />
       </div>
     </div>
@@ -54,6 +62,7 @@ function useProjectionShortcuts() {
   const stepLive = useAppStore((s) => s.stepLive)
   const setMode = useAppStore((s) => s.setMode)
   const goLive = useAppStore((s) => s.goLive)
+  const setWorkspaceMode = useAppStore((s) => s.setWorkspaceMode)
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -65,18 +74,31 @@ function useProjectionShortcuts() {
         target?.isContentEditable
       if (typing) return
 
+      // Global mode toggling
+      if ((event.ctrlKey || event.metaKey) && event.key === '1') {
+        event.preventDefault()
+        setWorkspaceMode('bible')
+        return
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key === '2') {
+        event.preventDefault()
+        setWorkspaceMode('live')
+        return
+      }
+
       const mode = useAppStore.getState().mode
 
       switch (event.key) {
+        case ' ':
         case 'ArrowRight':
         case 'PageDown':
           event.preventDefault()
-          stepLive(1)
+          void stepLive(1)
           break
         case 'ArrowLeft':
         case 'PageUp':
           event.preventDefault()
-          stepLive(-1)
+          void stepLive(-1)
           break
         case 'b':
         case 'B':
@@ -101,5 +123,5 @@ function useProjectionShortcuts() {
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [stepLive, setMode, goLive])
+  }, [stepLive, setMode, goLive, setWorkspaceMode])
 }

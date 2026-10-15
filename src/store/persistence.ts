@@ -26,6 +26,7 @@ function snapshot(state: ReturnType<typeof useAppStore.getState>): PersistedSett
     activeBookId: state.activeBookId,
     activeChapter: state.activeChapter,
     selectedMonitorId: state.selectedMonitorId,
+    workspaceMode: state.workspaceMode,
   }
 }
 

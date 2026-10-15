@@ -29,6 +29,7 @@ export interface PersistedSettings {
   activeBookId: string
   activeChapter: number
   selectedMonitorId: string | null
+  workspaceMode?: 'bible' | 'live'
 }
 
 export interface SettingsStore {

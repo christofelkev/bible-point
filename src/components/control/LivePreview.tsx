@@ -14,6 +14,7 @@ import type { ProjectionMode } from '../../types/projection'
 export function LivePreview() {
   const mode = useAppStore((s) => s.mode)
   const liveVerses = useAppStore((s) => s.liveVerses)
+  const liveSlide = useAppStore((s) => s.liveSlide)
   const theme = useAppStore((s) => s.theme)
   const revision = useAppStore((s) => s.revision)
   const outputOpen = useAppStore((s) => s.outputOpen)
@@ -21,6 +22,7 @@ export function LivePreview() {
   const stepLive = useAppStore((s) => s.stepLive)
 
   const toggle = (target: ProjectionMode) => setMode(mode === target ? 'live' : target)
+  const hasContent = liveVerses.length > 0 || liveSlide != null
 
   return (
     <div className="shrink-0 border-b border-ink-800">
@@ -42,7 +44,7 @@ export function LivePreview() {
       <div className="px-3 pb-3">
         <div className="relative w-full aspect-video rounded-lg overflow-hidden border border-ink-700 bg-black">
           <VerseStage
-            state={{ mode, verses: liveVerses, theme, revision }}
+            state={{ mode, verses: liveVerses, slide: liveSlide, theme, revision }}
             showSafeArea
           />
         </div>
@@ -52,13 +54,13 @@ export function LivePreview() {
             label="Prev"
             icon={<SkipBack size={13} />}
             onClick={() => stepLive(-1)}
-            disabled={liveVerses.length === 0}
+            disabled={!hasContent}
           />
           <TransportButton
             label="Next"
             icon={<SkipForward size={13} />}
             onClick={() => stepLive(1)}
-            disabled={liveVerses.length === 0}
+            disabled={!hasContent}
           />
           <TransportButton
             label="Clear"

@@ -52,7 +52,7 @@ interface Props {
  * 320px preview thumbnail identically.
  */
 export function VerseStage({ state, showSafeArea = false }: Props) {
-  const { theme, verses, mode, revision } = state
+  const { theme, verses, slide, mode, revision } = state
   const { typography: type, layout, transition } = theme
 
   // Retrigger the entrance animation whenever a new snapshot arrives.
@@ -81,7 +81,7 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
   useLayoutEffect(() => {
     passes.current = 0
     setSearch(FIT_START)
-  }, [revision, theme, verses])
+  }, [revision, theme, verses, slide])
 
   /**
    * Binary search for the largest scale that still fits.
@@ -143,9 +143,16 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
     return <div className="absolute inset-0 bg-black" />
   }
 
-  const showText = mode === 'live' && verses.length > 0
-  const reference = verses.length > 0 ? formatRange(verses) : ''
-  const translationLabel = verses[0]?.translationId.split('-')[1]?.toUpperCase() ?? ''
+  const hasSlide = Boolean(slide && slide.lines && slide.lines.length > 0)
+  const hasVerses = Boolean(verses && verses.length > 0)
+  const showText = mode === 'live' && (hasSlide || hasVerses)
+
+  const reference = slide ? (slide.reference ?? '') : (hasVerses ? formatRange(verses) : '')
+  const translationLabel = slide
+    ? (slide.secondaryMeta ?? '')
+    : (hasVerses ? (verses[0]?.translationId.split('-')[1]?.toUpperCase() ?? '') : '')
+  const sectionBadge = slide?.badge
+  const slideProgress = slide?.slideProgress
 
   const justify =
     layout.verticalAlign === 'top' ? 'flex-start'
@@ -189,12 +196,12 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
     return base
   })()
 
-  const referenceBlock = layout.referencePosition !== 'hidden' && reference && (
+  const referenceBlock = layout.referencePosition !== 'hidden' && (reference || sectionBadge || slideProgress) && (
     <div
-      className="shrink-0"
+      className="shrink-0 flex items-center flex-wrap gap-2"
       style={{
         fontSize: `${type.size * layout.referenceScale * fit}cqh`,
-        opacity: 0.72,
+        opacity: 0.75,
         letterSpacing: '0.06em',
         fontWeight: 500,
         textShadow,
@@ -202,8 +209,14 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
         marginBottom: layout.referencePosition === 'top' ? '2.2cqh' : 0,
       }}
     >
-      {reference}
-      {layout.showTranslation && translationLabel ? ` · ${translationLabel}` : ''}
+      {sectionBadge && (
+        <span className="px-[0.8cqh] py-[0.1cqh] rounded bg-white/20 border border-white/25 text-[0.85em] uppercase font-bold tracking-wider">
+          {sectionBadge}
+        </span>
+      )}
+      {reference && <span>{reference}</span>}
+      {layout.showTranslation && translationLabel ? <span>{` · ${translationLabel}`}</span> : ''}
+      {slideProgress && <span className="opacity-60 text-[0.85em] ml-1">({slideProgress})</span>}
     </div>
   )
 
@@ -254,33 +267,55 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
           >
           {layout.referencePosition === 'top' && referenceBlock}
 
-          <div
-            style={{
-              maxWidth: `${layout.maxWidth}cqw`,
-              fontSize: `${type.size * fit}cqh`,
-              fontWeight: type.weight,
-              lineHeight: type.lineHeight,
-              letterSpacing: `${type.letterSpacing}px`,
-              textTransform: type.uppercase ? 'uppercase' : 'none',
-              textShadow,
-              textWrap: 'balance',
-              ...outline,
-            }}
-          >
-            {verses.map((v, i) => (
-              <span key={`${v.bookId}-${v.chapter}-${v.verse}`}>
-                {i > 0 && ' '}
-                {verses.length > 1 && (
-                  <sup
-                    style={{ fontSize: '0.5em', opacity: 0.6, marginRight: '0.15em', fontWeight: 400 }}
-                  >
-                    {v.verse}
-                  </sup>
-                )}
-                {v.text}
-              </span>
-            ))}
-          </div>
+          {slide ? (
+            <div
+              style={{
+                maxWidth: `${layout.maxWidth}cqw`,
+                fontSize: `${type.size * fit}cqh`,
+                fontWeight: type.weight,
+                lineHeight: type.lineHeight,
+                letterSpacing: `${type.letterSpacing}px`,
+                textTransform: type.uppercase ? 'uppercase' : 'none',
+                textShadow,
+                textWrap: 'balance',
+                ...outline,
+              }}
+            >
+              {slide.lines.map((line, idx) => (
+                <div key={idx} className={idx > 0 ? 'mt-[0.5cqh]' : ''}>
+                  {line}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div
+              style={{
+                maxWidth: `${layout.maxWidth}cqw`,
+                fontSize: `${type.size * fit}cqh`,
+                fontWeight: type.weight,
+                lineHeight: type.lineHeight,
+                letterSpacing: `${type.letterSpacing}px`,
+                textTransform: type.uppercase ? 'uppercase' : 'none',
+                textShadow,
+                textWrap: 'balance',
+                ...outline,
+              }}
+            >
+              {verses.map((v, i) => (
+                <span key={`${v.bookId}-${v.chapter}-${v.verse}`}>
+                  {i > 0 && ' '}
+                  {verses.length > 1 && (
+                    <sup
+                      style={{ fontSize: '0.5em', opacity: 0.6, marginRight: '0.15em', fontWeight: 400 }}
+                    >
+                      {v.verse}
+                    </sup>
+                  )}
+                  {v.text}
+                </span>
+              ))}
+            </div>
+          )}
 
           {layout.referencePosition === 'bottom' && referenceBlock}
           </div>

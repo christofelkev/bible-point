@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { Book, SearchResult, Translation, Verse } from '../types/bible'
 import type { Background, Theme, Typography, StageLayout, Overlay, Transition } from '../types/theme'
-import type { ProjectionMode, ProjectionState } from '../types/projection'
+import type { AppWorkspaceMode, ProjectionMode, ProjectionSlide, ProjectionState } from '../types/projection'
 import { bibleSource } from '../services/bible'
 import type { InstallProgress, SideloadMeta } from '../services/bible'
 import { projectionChannel, outputWindow, defaultMonitor } from '../services/projection'
@@ -55,9 +55,15 @@ interface AppState {
   /** Working copy of the active theme; edits land here before being saved. */
   theme: Theme
 
+  // --- Workspace mode ------------------------------------------------------
+  workspaceMode: AppWorkspaceMode
+
   // --- Projection ----------------------------------------------------------
   mode: ProjectionMode
   liveVerses: Verse[]
+  liveSlide: ProjectionSlide | null
+  liveSongSlides: ProjectionSlide[]
+  activeLiveSlideIndex: number
   revision: number
   outputOpen: boolean
   /** True inside the Tauri shell; the browser build hides desktop-only controls. */
@@ -75,6 +81,7 @@ interface AppState {
 
   // --- Actions -------------------------------------------------------------
   init: () => Promise<void>
+  setWorkspaceMode: (mode: AppWorkspaceMode) => void
   setTranslation: (id: string) => Promise<void>
   openChapter: (bookId: string, chapter: number) => Promise<void>
   /** Returns false when there is no neighbouring chapter to move to. */
@@ -89,6 +96,7 @@ interface AppState {
   jumpToReference: (reference: string) => Promise<boolean>
 
   goLive: (verses?: Verse[]) => void
+  goLiveSlide: (slide: ProjectionSlide, allSlides?: ProjectionSlide[], index?: number) => void
   setMode: (mode: ProjectionMode) => void
   stepLive: (delta: number) => Promise<void>
   publish: () => void
@@ -148,12 +156,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   installProgress: {},
   installError: {},
 
+  workspaceMode: 'bible',
+
   themes: BUILTIN_THEMES.map(cloneTheme),
   activeThemeId: BUILTIN_THEMES[0].id,
   theme: cloneTheme(BUILTIN_THEMES[0]),
 
   mode: 'logo',
   liveVerses: [],
+  liveSlide: null,
+  liveSongSlides: [],
+  activeLiveSlideIndex: -1,
   revision: 0,
   outputOpen: false,
   isDesktop: isTauri(),
@@ -192,6 +205,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         activeBookId: saved.activeBookId,
         activeChapter: saved.activeChapter,
         selectedMonitorId: saved.selectedMonitorId,
+        workspaceMode: saved.workspaceMode ?? 'bible',
       })
 
       // Playlist ids must not collide with ids minted later this session.
@@ -319,6 +333,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ searchQuery: '', searchResults: [], searching: false })
   },
 
+  setWorkspaceMode(mode) {
+    set({ workspaceMode: mode })
+  },
+
   async jumpToReference(reference) {
     const verses = await bibleSource.lookupReference(get().activeTranslationId, reference)
     if (verses.length === 0) return false
@@ -338,6 +356,27 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     set({
       liveVerses: chosen,
+      liveSlide: null,
+      mode: 'live',
+      revision: state.revision + 1,
+      activePlaylistId: null,
+    })
+    get().publish()
+  },
+
+  goLiveSlide(slide, allSlides, index) {
+    const state = get()
+    const slides = allSlides ?? (state.liveSongSlides.length > 0 ? state.liveSongSlides : [slide])
+    const slideIdx =
+      index !== undefined
+        ? index
+        : slides.findIndex((s) => s === slide || (s.badge === slide.badge && s.lines.join() === slide.lines.join()))
+
+    set({
+      liveSlide: slide,
+      liveVerses: [],
+      liveSongSlides: slides,
+      activeLiveSlideIndex: slideIdx >= 0 ? slideIdx : 0,
       mode: 'live',
       revision: state.revision + 1,
       activePlaylistId: null,
@@ -351,7 +390,25 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   async stepLive(delta) {
-    const { liveVerses, chapterVerses } = get()
+    const { liveSlide, liveSongSlides, activeLiveSlideIndex, liveVerses, chapterVerses } = get()
+
+    // 1. If currently projecting a song slide, step within the song slides
+    if (liveSlide != null && liveSongSlides.length > 0) {
+      const target = activeLiveSlideIndex + delta
+      if (target >= 0 && target < liveSongSlides.length) {
+        const nextSlide = liveSongSlides[target]
+        set({
+          liveSlide: nextSlide,
+          activeLiveSlideIndex: target,
+          mode: 'live',
+          revision: get().revision + 1,
+        })
+        get().publish()
+      }
+      return
+    }
+
+    // 2. Otherwise step through Bible verses
     if (liveVerses.length === 0) return
 
     // Step by the size of the current block, keeping multi-verse slides intact.
@@ -384,6 +441,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     set({
       liveVerses: next,
+      liveSlide: null,
       selection: next.map((v) => v.verse),
       mode: 'live',
       revision: get().revision + 1,
@@ -420,8 +478,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   publish() {
-    const { mode, liveVerses, theme, revision } = get()
-    const snapshot: ProjectionState = { mode, verses: liveVerses, theme, revision }
+    const { mode, liveVerses, liveSlide, theme, revision } = get()
+    const snapshot: ProjectionState = { mode, verses: liveVerses, slide: liveSlide, theme, revision }
     projectionChannel.publish(snapshot)
   },
 

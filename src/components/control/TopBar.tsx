@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, CornerDownLeft } from 'lucide-react'
+import { Search, CornerDownLeft, BookOpen, Radio } from 'lucide-react'
 import clsx from 'clsx'
 import { useAppStore } from '../../store/useAppStore'
 import { Select } from '../ui/controls'
@@ -19,6 +19,8 @@ export function TopBar() {
   const runSearch = useAppStore((s) => s.runSearch)
   const clearSearch = useAppStore((s) => s.clearSearch)
   const jumpToReference = useAppStore((s) => s.jumpToReference)
+  const workspaceMode = useAppStore((s) => s.workspaceMode)
+  const setWorkspaceMode = useAppStore((s) => s.setWorkspaceMode)
 
   const [query, setQuery] = useState('')
   const [flash, setFlash] = useState<'none' | 'miss'>('none')
@@ -60,38 +62,82 @@ export function TopBar() {
         <span className="text-[13px] font-semibold tracking-tight">Bible Point</span>
       </div>
 
-      {installed.length > 0 ? (
-        <Select
-          value={activeTranslationId}
-          onChange={(id) => setTranslation(id)}
-          options={installed.map((t) => ({ value: t.id, label: `${t.abbrev} — ${t.name}` }))}
-          className="h-8 max-w-[210px]"
-        />
-      ) : (
-        <span className="text-[11px] text-ink-400 px-1">Belum ada terjemahan</span>
-      )}
-
-      <div
-        className={clsx(
-          'relative flex-1 max-w-[520px] h-8 flex items-center rounded-lg border bg-ink-950 transition-colors',
-          flash === 'miss' ? 'border-red-500/60' : 'border-ink-800 focus-within:border-ink-600',
-        )}
-      >
-        <Search size={13} className="absolute left-2.5 text-ink-400" />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') onSubmit()
-            if (e.key === 'Escape') { setQuery(''); clearSearch() }
-          }}
-          placeholder="Cari kata atau ketik referensi — mis. yoh 3:16"
-          className="w-full h-full bg-transparent pl-8 pr-16 text-xs text-white placeholder:text-ink-400 focus:outline-none"
-        />
-        <kbd className="absolute right-2 flex items-center gap-1 text-[9px] text-ink-400 border border-ink-700 rounded px-1 py-0.5">
-          <CornerDownLeft size={9} /> jump
-        </kbd>
+      {/* Mode Switcher Pill */}
+      <div className="flex items-center rounded-lg p-0.5 bg-ink-950 border border-ink-800 shrink-0">
+        <button
+          onClick={() => setWorkspaceMode('bible')}
+          title="Mode Alkitab (Ctrl+1)"
+          className={clsx(
+            'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer',
+            workspaceMode === 'bible'
+              ? 'bg-brand-500 text-ink-950 font-semibold shadow-sm'
+              : 'text-ink-400 hover:text-white',
+          )}
+        >
+          <BookOpen size={13} />
+          <span>Alkitab</span>
+        </button>
+        <button
+          onClick={() => setWorkspaceMode('live')}
+          title="Mode Live / Presentasi Pujian (Ctrl+2)"
+          className={clsx(
+            'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer',
+            workspaceMode === 'live'
+              ? 'bg-amber-400 text-ink-950 font-semibold shadow-sm'
+              : 'text-ink-400 hover:text-white',
+          )}
+        >
+          <Radio size={13} />
+          <span>Live</span>
+        </button>
       </div>
+
+      {workspaceMode === 'bible' ? (
+        <>
+          {installed.length > 0 ? (
+            <Select
+              value={activeTranslationId}
+              onChange={(id) => setTranslation(id)}
+              options={installed.map((t) => ({ value: t.id, label: `${t.abbrev} — ${t.name}` }))}
+              className="h-8 max-w-[210px]"
+            />
+          ) : (
+            <span className="text-[11px] text-ink-400 px-1">Belum ada terjemahan</span>
+          )}
+
+          <div
+            className={clsx(
+              'relative flex-1 max-w-[520px] h-8 flex items-center rounded-lg border bg-ink-950 transition-colors',
+              flash === 'miss' ? 'border-red-500/60' : 'border-ink-800 focus-within:border-ink-600',
+            )}
+          >
+            <Search size={13} className="absolute left-2.5 text-ink-400" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') onSubmit()
+                if (e.key === 'Escape') { setQuery(''); clearSearch() }
+              }}
+              placeholder="Cari kata atau ketik referensi — mis. yoh 3:16"
+              className="w-full h-full bg-transparent pl-8 pr-16 text-xs text-white placeholder:text-ink-400 focus:outline-none"
+            />
+            <kbd className="absolute right-2 flex items-center gap-1 text-[9px] text-ink-400 border border-ink-700 rounded px-1 py-0.5">
+              <CornerDownLeft size={9} /> jump
+            </kbd>
+          </div>
+        </>
+      ) : (
+        <div className="flex items-center gap-2 flex-1 max-w-[520px]">
+          <div className="relative flex-1 h-8 flex items-center rounded-lg border border-ink-800 bg-ink-950 px-3 text-xs text-ink-400">
+            <Radio size={12} className="mr-2 text-amber-400 animate-pulse" />
+            <span className="text-ink-300 text-xs">Presentasi Lirik & Lagu</span>
+            <span className="ml-auto text-[10px] text-ink-400 border border-ink-800 bg-ink-900 px-1.5 py-0.5 rounded">
+              Pilih slide di bawah untuk live
+            </span>
+          </div>
+        </div>
+      )}
 
       <div className="flex-1" />
 
