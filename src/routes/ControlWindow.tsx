@@ -63,6 +63,8 @@ function useProjectionShortcuts() {
   const setMode = useAppStore((s) => s.setMode)
   const goLive = useAppStore((s) => s.goLive)
   const setWorkspaceMode = useAppStore((s) => s.setWorkspaceMode)
+  const jumpToSlideIndex = useAppStore((s) => s.jumpToSlideIndex)
+  const jumpToSection = useAppStore((s) => s.jumpToSection)
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -86,6 +88,32 @@ function useProjectionShortcuts() {
         return
       }
 
+      // Live mode slide jump via numbers 1-9 (without modifiers)
+      if (/^[1-9]$/.test(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
+        event.preventDefault()
+        jumpToSlideIndex(Number(event.key) - 1)
+        return
+      }
+
+      // Quick section jumps with Shift
+      if (event.shiftKey && !event.ctrlKey && !event.metaKey) {
+        if (event.key === 'C' || event.key === 'c') {
+          event.preventDefault()
+          jumpToSection('chorus')
+          return
+        }
+        if (event.key === 'V' || event.key === 'v') {
+          event.preventDefault()
+          jumpToSection('verse')
+          return
+        }
+        if (event.key === 'B' || event.key === 'b') {
+          event.preventDefault()
+          jumpToSection('bridge')
+          return
+        }
+      }
+
       const mode = useAppStore.getState().mode
 
       switch (event.key) {
@@ -100,21 +128,37 @@ function useProjectionShortcuts() {
           event.preventDefault()
           void stepLive(-1)
           break
+        case 'Home':
+          event.preventDefault()
+          jumpToSlideIndex(0)
+          break
+        case 'End':
+          event.preventDefault()
+          jumpToSlideIndex(999)
+          break
         case 'b':
         case 'B':
+        case 'F1':
           event.preventDefault()
           setMode(mode === 'black' ? 'live' : 'black')
           break
         case 'c':
         case 'C':
+        case 'F2':
           event.preventDefault()
           setMode(mode === 'clear' ? 'live' : 'clear')
           break
         case 'Enter':
           event.preventDefault()
-          goLive()
+          const ws = useAppStore.getState().workspaceMode
+          if (ws === 'live') {
+            jumpToSlideIndex(0)
+          } else {
+            goLive()
+          }
           break
         case 'Escape':
+        case 'F3':
           event.preventDefault()
           setMode('logo')
           break
@@ -123,5 +167,5 @@ function useProjectionShortcuts() {
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [stepLive, setMode, goLive, setWorkspaceMode])
+  }, [stepLive, setMode, goLive, setWorkspaceMode, jumpToSlideIndex, jumpToSection])
 }

@@ -40,8 +40,13 @@ export function LiveWorkspace() {
   const activeLiveSlideIndex = useAppStore((s) => s.activeLiveSlideIndex)
   const mode = useAppStore((s) => s.mode)
   const goLiveSlide = useAppStore((s) => s.goLiveSlide)
+  const jumpToSection = useAppStore((s) => s.jumpToSection)
 
   const activeSong = songs.find((s) => s.id === activeSongId) ?? songs[0]
+
+  const sectionBadges = activeSong
+    ? (Array.from(new Set(activeSong.slides.map((s) => s.badge).filter(Boolean))) as string[])
+    : []
 
   const filteredSongs = songs.filter(
     (s) =>
@@ -196,6 +201,25 @@ export function LiveWorkspace() {
                     </>
                   )}
                 </div>
+
+                {/* Quick Section Jump Pills */}
+                {sectionBadges.length > 0 && (
+                  <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                    <span className="text-[10px] text-ink-500 font-medium">Lompat:</span>
+                    {sectionBadges.map((badge) => (
+                      <button
+                        key={badge}
+                        onClick={() => jumpToSection(badge)}
+                        className={clsx(
+                          'text-[10px] font-bold px-2 py-0.5 rounded border transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-xs',
+                          getBadgeColor(badge),
+                        )}
+                      >
+                        {badge}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-2">
@@ -244,20 +268,30 @@ export function LiveWorkspace() {
                       className={clsx(
                         'relative rounded-xl border p-3.5 flex flex-col justify-between transition-all cursor-pointer aspect-video select-none group',
                         live
-                          ? 'border-amber-400 bg-amber-950/20 ring-2 ring-amber-400/30 shadow-lg'
+                          ? 'border-amber-400 bg-amber-950/30 ring-2 ring-amber-400/40 shadow-lg shadow-amber-500/10'
                           : 'border-ink-800 bg-ink-900/50 hover:border-ink-600 hover:bg-ink-900',
                       )}
                     >
                       {/* Top Bar Card */}
                       <div className="flex items-center justify-between gap-1 mb-2">
-                        <span
-                          className={clsx(
-                            'text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border',
-                            badgeStyle,
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={clsx(
+                              'text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border',
+                              badgeStyle,
+                            )}
+                          >
+                            {slide.badge ?? `Slide ${index + 1}`}
+                          </span>
+                          {index < 9 && (
+                            <span
+                              className="text-[9px] font-mono text-ink-400 bg-ink-950/80 px-1 py-0.2 rounded border border-ink-800"
+                              title={`Tekan tombol ${index + 1} di keyboard untuk langsung tayang`}
+                            >
+                              [{index + 1}]
+                            </span>
                           )}
-                        >
-                          {slide.badge ?? `Slide ${index + 1}`}
-                        </span>
+                        </div>
 
                         {live ? (
                           <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/30 animate-pulse">
@@ -271,13 +305,13 @@ export function LiveWorkspace() {
                       </div>
 
                       {/* Body Text Preview */}
-                      <div className="flex-1 flex flex-col justify-center text-center px-1">
+                      <div className="flex-1 flex flex-col justify-center text-center px-1 overflow-hidden">
                         {slide.lines.map((line, lIdx) => (
                           <div
                             key={lIdx}
                             className={clsx(
-                              'text-xs leading-snug line-clamp-1',
-                              live ? 'text-white font-medium' : 'text-ink-300 group-hover:text-ink-100',
+                              'text-xs leading-snug line-clamp-2',
+                              live ? 'text-white font-semibold' : 'text-ink-300 group-hover:text-ink-100',
                             )}
                           >
                             {line}

@@ -116,6 +116,8 @@ interface AppState {
   goLiveSlide: (slide: ProjectionSlide, allSlides?: ProjectionSlide[], index?: number) => void
   setMode: (mode: ProjectionMode) => void
   stepLive: (delta: number) => Promise<void>
+  jumpToSlideIndex: (index: number) => void
+  jumpToSection: (query: string) => void
   publish: () => void
 
   refreshMonitors: () => Promise<void>
@@ -458,6 +460,26 @@ export const useAppStore = create<AppState>((set, get) => ({
       activePlaylistId: null,
     })
     get().publish()
+  },
+
+  jumpToSlideIndex(index) {
+    const { liveSongSlides, songs, activeSongId } = get()
+    const activeSong = songs.find((s) => s.id === activeSongId)
+    const slides = liveSongSlides.length > 0 ? liveSongSlides : (activeSong?.slides ?? [])
+    if (index >= 0 && index < slides.length) {
+      get().goLiveSlide(slides[index], slides, index)
+    }
+  },
+
+  jumpToSection(query) {
+    const { liveSongSlides, songs, activeSongId } = get()
+    const activeSong = songs.find((s) => s.id === activeSongId)
+    const slides = liveSongSlides.length > 0 ? liveSongSlides : (activeSong?.slides ?? [])
+    const q = query.toLowerCase()
+    const foundIdx = slides.findIndex((s) => s.badge?.toLowerCase().includes(q))
+    if (foundIdx >= 0) {
+      get().goLiveSlide(slides[foundIdx], slides, foundIdx)
+    }
   },
 
   setMode(mode) {
