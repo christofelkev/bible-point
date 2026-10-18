@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Music, Plus, Radio, Play, Edit3, Trash2 } from 'lucide-react'
+import { Music, Plus, Radio, Play, Edit3, Trash2, ListPlus } from 'lucide-react'
 import clsx from 'clsx'
 import { useAppStore } from '../../store/useAppStore'
 import type { ProjectionSlide } from '../../types/projection'
@@ -31,6 +31,7 @@ export function LiveWorkspace() {
   const setActiveSongId = useAppStore((s) => s.setActiveSongId)
   const saveSong = useAppStore((s) => s.saveSong)
   const deleteSong = useAppStore((s) => s.deleteSong)
+  const addSongToPlaylist = useAppStore((s) => s.addSongToPlaylist)
 
   const [search, setSearch] = useState('')
   const [isEditorOpen, setIsEditorOpen] = useState(false)
@@ -230,6 +231,17 @@ export function LiveWorkspace() {
                 >
                   <Edit3 size={13} />
                   <span>Edit</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    if (activeSong) addSongToPlaylist(activeSong)
+                  }}
+                  title="Tambahkan lagu ini ke antrian ibadah"
+                  className="h-8 px-2.5 rounded-lg bg-ink-800 hover:bg-ink-700 text-ink-300 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer border border-ink-700/60"
+                >
+                  <ListPlus size={13} />
+                  <span>Antrian</span>
                 </button>
 
                 <button

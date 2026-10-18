@@ -16,13 +16,20 @@ import type { Song } from '../types/song'
 import { songStore } from '../services/songs'
 import { DEFAULT_SONGS } from '../data/defaultSongs'
 
-/** One entry in the service order the operator builds before the meeting. */
+export type PlaylistItemKind = 'bible' | 'song'
+
+/** One entry in the unified service order (Scripture or Song). */
 export interface PlaylistItem {
   id: string
   label: string
-  verses: Verse[]
+  kind?: PlaylistItemKind
+  verses?: Verse[]
+  songId?: string
+  slides?: ProjectionSlide[]
+  artist?: string
   /** Theme override; falls back to the active theme when absent. */
   themeId?: string
+  backgroundOverride?: Background
 }
 
 export type PanelTab = 'design' | 'playlist' | 'library'
@@ -139,6 +146,7 @@ interface AppState {
   deleteTheme: (id: string) => void
 
   addToPlaylist: (verses?: Verse[]) => void
+  addSongToPlaylist: (song: Song) => void
   removeFromPlaylist: (id: string) => void
   movePlaylistItem: (id: string, delta: number) => void
   projectPlaylistItem: (id: string) => void
@@ -681,8 +689,24 @@ export const useAppStore = create<AppState>((set, get) => ({
     const item: PlaylistItem = {
       id: nextId(),
       label: formatRange(chosen),
+      kind: 'bible',
       verses: chosen,
       themeId: state.activeThemeId,
+    }
+    set({ playlist: [...state.playlist, item], panelTab: 'playlist' })
+  },
+
+  addSongToPlaylist(song) {
+    const state = get()
+    const item: PlaylistItem = {
+      id: nextId(),
+      label: song.title,
+      kind: 'song',
+      songId: song.id,
+      artist: song.artist,
+      slides: song.slides,
+      themeId: state.activeThemeId,
+      backgroundOverride: state.liveBackgroundOverride ?? undefined,
     }
     set({ playlist: [...state.playlist, item], panelTab: 'playlist' })
   },
@@ -713,7 +737,37 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (preset) set({ activeThemeId: preset.id, theme: cloneTheme(preset) })
     }
 
-    set({ liveVerses: item.verses, mode: 'live', revision: get().revision + 1, activePlaylistId: id })
+    if (item.backgroundOverride !== undefined) {
+      set({ liveBackgroundOverride: item.backgroundOverride })
+    }
+
+    if (item.kind === 'song' || item.slides) {
+      const slides = item.slides ?? []
+      const firstSlide = slides[0] ?? null
+      set({
+        workspaceMode: 'live',
+        activeSongId: item.songId ?? get().activeSongId,
+        liveSongSlides: slides,
+        liveSlide: firstSlide,
+        activeLiveSlideIndex: firstSlide ? 0 : -1,
+        liveVerses: [],
+        mode: 'live',
+        revision: get().revision + 1,
+        activePlaylistId: id,
+      })
+      get().publish()
+      return
+    }
+
+    const verses = item.verses ?? []
+    set({
+      workspaceMode: 'bible',
+      liveVerses: verses,
+      liveSlide: null,
+      mode: 'live',
+      revision: get().revision + 1,
+      activePlaylistId: id,
+    })
     get().publish()
   },
 
