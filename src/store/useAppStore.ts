@@ -9,9 +9,12 @@ import type { MonitorInfo } from '../services/projection'
 import { isTauri } from '../services/platform'
 import { BUILTIN_THEMES } from '../data/presets'
 import { settingsStore } from '../services/settings'
-import { rehydrateTheme, pruneUnusedAssets } from '../services/media'
+import { rehydrateTheme, pruneUnusedAssets, rehydrateBackground } from '../services/media'
 import { exportPresets, importPresets } from '../services/presets'
 import { formatRange } from '../types/bible'
+import type { Song } from '../types/song'
+import { songStore } from '../services/songs'
+import { DEFAULT_SONGS } from '../data/defaultSongs'
 
 /** One entry in the service order the operator builds before the meeting. */
 export interface PlaylistItem {
@@ -58,12 +61,20 @@ interface AppState {
   // --- Workspace mode ------------------------------------------------------
   workspaceMode: AppWorkspaceMode
 
+  // --- Songs (Live Mode) ---------------------------------------------------
+  songs: Song[]
+  activeSongId: string | null
+
   // --- Projection ----------------------------------------------------------
   mode: ProjectionMode
   liveVerses: Verse[]
   liveSlide: ProjectionSlide | null
   liveSongSlides: ProjectionSlide[]
   activeLiveSlideIndex: number
+  /** Live background override from Media Bin (overrides theme.background without modifying preset) */
+  liveBackgroundOverride: Background | null
+  /** User-uploaded and custom media backgrounds */
+  mediaLibrary: Background[]
   revision: number
   outputOpen: boolean
   /** True inside the Tauri shell; the browser build hides desktop-only controls. */
@@ -82,6 +93,12 @@ interface AppState {
   // --- Actions -------------------------------------------------------------
   init: () => Promise<void>
   setWorkspaceMode: (mode: AppWorkspaceMode) => void
+
+  loadSongs: () => Promise<void>
+  saveSong: (song: Song) => Promise<void>
+  deleteSong: (id: string) => Promise<void>
+  setActiveSongId: (id: string | null) => void
+
   setTranslation: (id: string) => Promise<void>
   openChapter: (bookId: string, chapter: number) => Promise<void>
   /** Returns false when there is no neighbouring chapter to move to. */
@@ -113,6 +130,9 @@ interface AppState {
   patchOverlay: (patch: Partial<Overlay>) => void
   patchTransition: (patch: Partial<Transition>) => void
   setBackground: (background: Background) => void
+  setLiveBackgroundOverride: (background: Background | null) => void
+  addMediaAsset: (background: Background) => void
+  removeMediaAsset: (index: number) => void
   saveThemeAsPreset: (name: string) => void
   deleteTheme: (id: string) => void
 
@@ -157,6 +177,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   installError: {},
 
   workspaceMode: 'bible',
+  songs: [],
+  activeSongId: null,
 
   themes: BUILTIN_THEMES.map(cloneTheme),
   activeThemeId: BUILTIN_THEMES[0].id,
@@ -167,6 +189,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   liveSlide: null,
   liveSongSlides: [],
   activeLiveSlideIndex: -1,
+  liveBackgroundOverride: null,
+  mediaLibrary: [],
   revision: 0,
   outputOpen: false,
   isDesktop: isTauri(),
@@ -193,6 +217,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       const [theme, ...customThemes] = await Promise.all(
         [saved.theme, ...saved.customThemes].map(rehydrateTheme),
       )
+      const mediaLibrary = await Promise.all(
+        (saved.mediaLibrary ?? []).map(rehydrateBackground),
+      )
 
       set({
         // Built-ins always come from code; saved presets are appended. A saved
@@ -206,6 +233,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         activeChapter: saved.activeChapter,
         selectedMonitorId: saved.selectedMonitorId,
         workspaceMode: saved.workspaceMode ?? 'bible',
+        mediaLibrary,
       })
 
       // Playlist ids must not collide with ids minted later this session.
@@ -241,9 +269,24 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     await get().refreshMonitors()
 
+    // Restore worship songs from persistent storage (or seed initial demo songs).
+    const loadedSongs = await songStore.load()
+    const songs = loadedSongs && loadedSongs.length > 0 ? loadedSongs : DEFAULT_SONGS
+    if (!loadedSongs || loadedSongs.length === 0) {
+      void songStore.save(DEFAULT_SONGS)
+    }
+    set({
+      songs,
+      activeSongId: songs[0]?.id ?? null,
+    })
+
     // Files the operator tried and moved on from would otherwise pile up
     // forever. Runs after hydration so every live reference is already known.
-    void pruneUnusedAssets([get().theme, ...get().themes])
+    const mediaThemes: Theme[] = get().mediaLibrary.map((bg) => ({
+      ...get().theme,
+      background: bg,
+    }))
+    void pruneUnusedAssets([get().theme, ...get().themes, ...mediaThemes])
   },
 
   async setTranslation(id) {
@@ -335,6 +378,39 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setWorkspaceMode(mode) {
     set({ workspaceMode: mode })
+  },
+
+  async loadSongs() {
+    const loaded = await songStore.load()
+    if (loaded) {
+      set({ songs: loaded })
+    }
+  },
+
+  async saveSong(song) {
+    const { songs } = get()
+    const idx = songs.findIndex((s) => s.id === song.id)
+    let nextSongs: Song[]
+    if (idx >= 0) {
+      nextSongs = [...songs]
+      nextSongs[idx] = song
+    } else {
+      nextSongs = [song, ...songs]
+    }
+    set({ songs: nextSongs, activeSongId: song.id })
+    await songStore.save(nextSongs)
+  },
+
+  async deleteSong(id) {
+    const { songs, activeSongId } = get()
+    const nextSongs = songs.filter((s) => s.id !== id)
+    const nextActive = activeSongId === id ? (nextSongs[0]?.id ?? null) : activeSongId
+    set({ songs: nextSongs, activeSongId: nextActive })
+    await songStore.save(nextSongs)
+  },
+
+  setActiveSongId(id) {
+    set({ activeSongId: id })
   },
 
   async jumpToReference(reference) {
@@ -478,8 +554,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   publish() {
-    const { mode, liveVerses, liveSlide, theme, revision } = get()
-    const snapshot: ProjectionState = { mode, verses: liveVerses, slide: liveSlide, theme, revision }
+    const { mode, liveVerses, liveSlide, theme, liveBackgroundOverride, revision } = get()
+    const effectiveTheme = liveBackgroundOverride ? { ...theme, background: liveBackgroundOverride } : theme
+    const snapshot: ProjectionState = { mode, verses: liveVerses, slide: liveSlide, theme: effectiveTheme, revision }
     projectionChannel.publish(snapshot)
   },
 
@@ -522,6 +599,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   setBackground(background) {
     set({ theme: { ...get().theme, background } })
     get().publish()
+  },
+
+  setLiveBackgroundOverride(background) {
+    set({ liveBackgroundOverride: background, revision: get().revision + 1 })
+    get().publish()
+  },
+
+  addMediaAsset(background) {
+    const mediaLibrary = [background, ...get().mediaLibrary]
+    set({ mediaLibrary })
+  },
+
+  removeMediaAsset(index) {
+    const mediaLibrary = get().mediaLibrary.filter((_, i) => i !== index)
+    set({ mediaLibrary })
   },
 
   saveThemeAsPreset(name) {

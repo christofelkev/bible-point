@@ -4,6 +4,7 @@ pub mod install;
 pub mod media;
 pub mod model;
 pub mod settings;
+pub mod songs;
 
 use std::collections::HashSet;
 use std::sync::Mutex;
@@ -143,6 +144,19 @@ fn load_settings(app: AppHandle) -> Result<Option<String>, String> {
 fn save_settings(app: AppHandle, contents: String) -> Result<(), String> {
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     settings::save(&settings::path(dir), &contents)
+}
+
+/// Reads persisted songs collection. Returns null when not yet initialized.
+#[tauri::command]
+fn load_songs(app: AppHandle) -> Result<Option<String>, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    songs::load(&songs::path(dir))
+}
+
+#[tauri::command]
+fn save_songs(app: AppHandle, contents: String) -> Result<(), String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    songs::save(&songs::path(dir), &contents)
 }
 
 /// Copies a chosen background or font into app storage, returning its path.
@@ -315,6 +329,8 @@ pub fn run() {
             uninstall_translation,
             load_settings,
             save_settings,
+            load_songs,
+            save_songs,
             import_asset,
             prune_assets,
             sideload_translation,

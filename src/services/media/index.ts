@@ -105,19 +105,27 @@ export function isTemporaryReference(src: string): boolean {
  * to a plain colour and a custom font falls back to a built-in, rather than
  * rendering nothing on the projector.
  */
+export async function rehydrateBackground(background: Background): Promise<Background> {
+  const convert = isTauri()
+    ? (await import('@tauri-apps/api/core')).convertFileSrc
+    : null
+
+  if (background.kind === 'image' || background.kind === 'video') {
+    if (background.path && convert) {
+      return { ...background, src: convert(background.path) }
+    } else if (isTemporaryReference(background.src)) {
+      return { kind: 'solid', color: '#0b1224' }
+    }
+  }
+  return background
+}
+
 export async function rehydrateTheme(theme: Theme): Promise<Theme> {
   const convert = isTauri()
     ? (await import('@tauri-apps/api/core')).convertFileSrc
     : null
 
-  let background = theme.background
-  if (background.kind === 'image' || background.kind === 'video') {
-    if (background.path && convert) {
-      background = { ...background, src: convert(background.path) }
-    } else if (isTemporaryReference(background.src)) {
-      background = { kind: 'solid', color: '#0b1224' }
-    }
-  }
+  const background = await rehydrateBackground(theme.background)
 
   let typography = theme.typography
   if (typography.fontSrc) {

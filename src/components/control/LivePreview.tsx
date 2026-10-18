@@ -16,6 +16,7 @@ export function LivePreview() {
   const liveVerses = useAppStore((s) => s.liveVerses)
   const liveSlide = useAppStore((s) => s.liveSlide)
   const theme = useAppStore((s) => s.theme)
+  const liveBackgroundOverride = useAppStore((s) => s.liveBackgroundOverride)
   const revision = useAppStore((s) => s.revision)
   const outputOpen = useAppStore((s) => s.outputOpen)
   const setMode = useAppStore((s) => s.setMode)
@@ -23,6 +24,7 @@ export function LivePreview() {
 
   const toggle = (target: ProjectionMode) => setMode(mode === target ? 'live' : target)
   const hasContent = liveVerses.length > 0 || liveSlide != null
+  const effectiveTheme = liveBackgroundOverride ? { ...theme, background: liveBackgroundOverride } : theme
 
   return (
     <div className="shrink-0 border-b border-ink-800">
@@ -44,7 +46,7 @@ export function LivePreview() {
       <div className="px-3 pb-3">
         <div className="relative w-full aspect-video rounded-lg overflow-hidden border border-ink-700 bg-black">
           <VerseStage
-            state={{ mode, verses: liveVerses, slide: liveSlide, theme, revision }}
+            state={{ mode, verses: liveVerses, slide: liveSlide, theme: effectiveTheme, revision }}
             showSafeArea
           />
         </div>

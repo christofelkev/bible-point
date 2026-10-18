@@ -1,4 +1,4 @@
-import type { Theme } from '../../types/theme'
+import type { Background, Theme } from '../../types/theme'
 import type { PlaylistItem } from '../../store/useAppStore'
 
 /**
@@ -30,6 +30,7 @@ export interface PersistedSettings {
   activeChapter: number
   selectedMonitorId: string | null
   workspaceMode?: 'bible' | 'live'
+  mediaLibrary?: Background[]
 }
 
 export interface SettingsStore {
