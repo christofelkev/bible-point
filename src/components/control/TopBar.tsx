@@ -127,17 +127,7 @@ export function TopBar() {
             </kbd>
           </div>
         </>
-      ) : (
-        <div className="flex items-center gap-2 flex-1 max-w-[520px]">
-          <div className="relative flex-1 h-8 flex items-center rounded-lg border border-ink-800 bg-ink-950 px-3 text-xs text-ink-400">
-            <Radio size={12} className="mr-2 text-amber-400 animate-pulse" />
-            <span className="text-ink-300 text-xs">Presentasi Lirik & Lagu</span>
-            <span className="ml-auto text-[10px] text-ink-400 border border-ink-800 bg-ink-900 px-1.5 py-0.5 rounded">
-              Pilih slide di bawah untuk live
-            </span>
-          </div>
-        </div>
-      )}
+      ) : null}
 
       <div className="flex-1" />
 

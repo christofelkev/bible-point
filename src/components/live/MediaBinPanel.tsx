@@ -3,7 +3,6 @@ import {
   Upload,
   RotateCcw,
   Film,
-  Sparkles,
   Layers,
   Trash2,
 } from 'lucide-react'
@@ -85,19 +84,9 @@ export function MediaBinPanel() {
       <div className="px-4 py-2 border-b border-ink-800/80 flex items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2">
           <Layers size={14} className="text-amber-400" />
-          <span className="font-bold text-ink-200 uppercase tracking-wider text-[11px]">
-            Media Bin (Latar Belakang)
+          <span className="font-semibold text-ink-200 text-xs">
+            Latar Belakang
           </span>
-
-          {liveBackgroundOverride ? (
-            <span className="flex items-center gap-1 text-[10px] font-medium text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.2 rounded-full">
-              <Sparkles size={10} /> Override Live Aktif
-            </span>
-          ) : (
-            <span className="text-[10px] text-ink-500 font-medium">
-              (Mengikuti Tema Aktif)
-            </span>
-          )}
         </div>
 
         {/* Filter Pills & Actions */}
@@ -187,8 +176,6 @@ export function MediaBinPanel() {
         {filtered.map(({ bg, isUser, userIndex }, idx) => {
           const active = isCurrentActive(bg)
           const isVideo = bg.kind === 'video'
-          const isImage = bg.kind === 'image'
-          const label = bg.kind === 'image' || bg.kind === 'video' ? bg.label : bg.kind
 
           return (
             <div
@@ -220,27 +207,9 @@ export function MediaBinPanel() {
                 />
               )}
 
-              {/* Tag / Badge */}
-              <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between text-[8px] text-white/80 font-medium">
-                <span className="truncate max-w-[70px] bg-black/60 px-1 py-0.2 rounded backdrop-blur-xs">
-                  {label}
-                </span>
-
-                {isVideo && (
-                  <span className="bg-amber-500/80 text-ink-950 px-1 py-0.2 rounded font-bold uppercase tracking-wider text-[7px]">
-                    Video
-                  </span>
-                )}
-                {isImage && (
-                  <span className="bg-black/60 text-white/90 px-1 py-0.2 rounded font-bold uppercase tracking-wider text-[7px]">
-                    Foto
-                  </span>
-                )}
-              </div>
-
               {/* Active Indicator Overlay */}
               {active && (
-                <div className="absolute top-1 right-1 bg-amber-400 text-ink-950 text-[7px] font-bold px-1 py-0.2 rounded shadow">
+                <div className="absolute top-1 right-1 bg-amber-400 text-ink-950 text-[7px] font-bold px-1.5 py-0.2 rounded shadow">
                   LIVE
                 </div>
               )}

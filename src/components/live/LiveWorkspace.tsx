@@ -69,14 +69,9 @@ export function LiveWorkspace() {
   const activeLiveSlideIndex = useAppStore((s) => s.activeLiveSlideIndex)
   const mode = useAppStore((s) => s.mode)
   const goLiveSlide = useAppStore((s) => s.goLiveSlide)
-  const jumpToSection = useAppStore((s) => s.jumpToSection)
 
   const activeSong = songs.find((s) => s.id === activeSongId) ?? songs[0]
   const activeDeck = presentations.find((d) => d.id === activeDeckId) ?? presentations[0]
-
-  const sectionBadges = activeSong
-    ? (Array.from(new Set(activeSong.slides.map((s) => s.badge).filter(Boolean))) as string[])
-    : []
 
   const filteredSongs = songs.filter(
     (s) =>
@@ -200,17 +195,8 @@ export function LiveWorkspace() {
                           : 'bg-ink-900/40 border-ink-800/80 text-ink-300 hover:bg-ink-850 hover:text-white',
                       )}
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold truncate pr-2">
-                          {song.title}
-                        </span>
-                        <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-ink-950/80 text-ink-400">
-                          {song.key}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between mt-1 text-[11px] text-ink-400">
-                        <span className="truncate">{song.artist || '—'}</span>
-                        <span className="text-[10px]">{song.slides.length} slide</span>
+                      <div className="text-xs font-semibold truncate">
+                        {song.title}
                       </div>
                     </button>
                   )
@@ -235,7 +221,7 @@ export function LiveWorkspace() {
               <input
                 value={deckSearch}
                 onChange={(e) => setDeckSearch(e.target.value)}
-                placeholder="Cari presentasi / khotbah..."
+                placeholder="Cari presentasi..."
                 className="w-full h-7 rounded bg-ink-950 border border-ink-800 px-2 text-xs placeholder:text-ink-500 focus:outline-none focus:border-ink-600"
               />
             </div>
@@ -243,12 +229,11 @@ export function LiveWorkspace() {
             <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
               {filteredDecks.length === 0 ? (
                 <div className="p-4 text-center text-xs text-ink-500">
-                  {deckSearch ? 'Presentasi tidak ditemukan' : 'Belum ada presentasi diimpor'}
+                  {deckSearch ? 'Presentasi tidak ditemukan' : 'Belum ada presentasi'}
                 </div>
               ) : (
                 filteredDecks.map((deck) => {
                   const isSelected = deck.id === activeDeck?.id
-                  const isPdf = deck.sourceType === 'pdf'
                   return (
                     <button
                       key={deck.id}
@@ -256,30 +241,12 @@ export function LiveWorkspace() {
                       className={clsx(
                         'w-full text-left p-2.5 rounded-lg border transition-colors cursor-pointer group',
                         isSelected
-                          ? 'bg-ink-800/90 border-purple-500/50 text-white shadow-sm'
+                          ? 'bg-ink-800/90 border-amber-500/50 text-white shadow-sm'
                           : 'bg-ink-900/40 border-ink-800/80 text-ink-300 hover:bg-ink-850 hover:text-white',
                       )}
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold truncate pr-2">
-                          {deck.title}
-                        </span>
-                        <span
-                          className={clsx(
-                            'text-[9px] font-mono px-1 py-0.5 rounded uppercase font-bold',
-                            isPdf
-                              ? 'bg-rose-500/20 text-rose-300'
-                              : 'bg-blue-500/20 text-blue-300',
-                          )}
-                        >
-                          {deck.sourceType}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between mt-1 text-[11px] text-ink-400">
-                        <span className="truncate">{deck.slideCount} slide</span>
-                        {deck.orientationHandling === 'split' && (
-                          <span className="text-[9px] text-amber-400/90 font-medium">Bagi 2</span>
-                        )}
+                      <div className="text-xs font-semibold truncate">
+                        {deck.title}
                       </div>
                     </button>
                   )
@@ -290,10 +257,10 @@ export function LiveWorkspace() {
             <div className="p-2.5 border-t border-ink-800">
               <button
                 onClick={() => setIsImportModalOpen(true)}
-                className="w-full h-8 rounded-lg bg-purple-600 hover:bg-purple-500 text-xs font-bold flex items-center justify-center gap-1.5 text-white transition-colors cursor-pointer shadow-sm"
+                className="w-full h-8 rounded-lg bg-ink-800 hover:bg-ink-700 text-xs font-medium flex items-center justify-center gap-1.5 text-ink-200 transition-colors cursor-pointer"
               >
                 <Upload size={13} />
-                <span>Import PDF / PPTX</span>
+                <span>Import File</span>
               </button>
             </div>
           </>
@@ -323,53 +290,9 @@ export function LiveWorkspace() {
             <>
               {/* Header Lagu Aktif */}
               <div className="px-5 py-3 border-b border-ink-800 flex items-center justify-between bg-ink-900/40">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-bold text-white tracking-tight">
-                      {activeSong.title}
-                    </h2>
-                    {activeSong.artist && (
-                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-ink-800 text-ink-300 font-medium">
-                        {activeSong.artist}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 mt-1 text-[11px] text-ink-400">
-                    <span className="font-mono bg-ink-900 px-1 py-0.2 rounded border border-ink-800">
-                      Nada: {activeSong.key}
-                    </span>
-                    <span className="font-mono bg-ink-900 px-1 py-0.2 rounded border border-ink-800">
-                      Tempo: {activeSong.tempo} BPM
-                    </span>
-                    {activeSong.arrangement && (
-                      <>
-                        <span className="text-ink-500">•</span>
-                        <span className="text-ink-400 text-[10px]">
-                          Susunan: <strong className="text-ink-300">{activeSong.arrangement}</strong>
-                        </span>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Quick Section Jump Pills */}
-                  {sectionBadges.length > 0 && (
-                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                      <span className="text-[10px] text-ink-500 font-medium">Lompat:</span>
-                      {sectionBadges.map((badge) => (
-                        <button
-                          key={badge}
-                          onClick={() => jumpToSection(badge)}
-                          className={clsx(
-                            'text-[10px] font-bold px-2 py-0.5 rounded border transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-xs',
-                            getBadgeColor(badge),
-                          )}
-                        >
-                          {badge}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <h2 className="text-sm font-bold text-white tracking-tight">
+                  {activeSong.title}
+                </h2>
 
                 <div className="flex items-center gap-2">
                   <button
@@ -426,39 +349,25 @@ export function LiveWorkspace() {
                         key={index}
                         onClick={() => goLiveSlide(slide, activeSong.slides, index)}
                         className={clsx(
-                          'relative rounded-xl border p-3.5 flex flex-col justify-between transition-all cursor-pointer aspect-video select-none group',
+                          'relative rounded-xl border p-4 flex flex-col justify-between transition-all cursor-pointer aspect-video select-none group',
                           live
                             ? 'border-amber-400 bg-amber-950/30 ring-2 ring-amber-400/40 shadow-lg shadow-amber-500/10'
                             : 'border-ink-800 bg-ink-900/50 hover:border-ink-600 hover:bg-ink-900',
                         )}
                       >
                         <div className="flex items-center justify-between gap-1 mb-2">
-                          <div className="flex items-center gap-1.5">
-                            <span
-                              className={clsx(
-                                'text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border',
-                                badgeStyle,
-                              )}
-                            >
-                              {slide.badge ?? `Slide ${index + 1}`}
-                            </span>
-                            {index < 9 && (
-                              <span
-                                className="text-[9px] font-mono text-ink-400 bg-ink-950/80 px-1 py-0.2 rounded border border-ink-800"
-                                title={`Tekan tombol ${index + 1} di keyboard untuk langsung tayang`}
-                              >
-                                [{index + 1}]
-                              </span>
+                          <span
+                            className={clsx(
+                              'text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border',
+                              badgeStyle,
                             )}
-                          </div>
+                          >
+                            {slide.badge ?? `Slide ${index + 1}`}
+                          </span>
 
-                          {live ? (
-                            <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/30 animate-pulse">
+                          {live && (
+                            <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/30">
                               <Radio size={9} /> Live
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-ink-500 font-mono">
-                              #{index + 1}
                             </span>
                           )}
                         </div>
@@ -475,11 +384,6 @@ export function LiveWorkspace() {
                               {line}
                             </div>
                           ))}
-                        </div>
-
-                        <div className="mt-2 pt-1.5 border-t border-ink-800/60 flex items-center justify-between text-[9px] text-ink-500">
-                          <span className="truncate max-w-[120px]">{slide.reference}</span>
-                          <span>{slide.slideProgress}</span>
                         </div>
                       </div>
                     )
@@ -512,40 +416,9 @@ export function LiveWorkspace() {
             <>
               {/* Header Presentasi Aktif */}
               <div className="px-5 py-3 border-b border-ink-800 flex items-center justify-between bg-ink-900/40">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-bold text-white tracking-tight">
-                      {activeDeck.title}
-                    </h2>
-                    <span
-                      className={clsx(
-                        'text-[10px] px-1.5 py-0.2 rounded font-bold uppercase',
-                        activeDeck.sourceType === 'pdf'
-                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                          : 'bg-blue-500/20 text-blue-300 border border-blue-500/30',
-                      )}
-                    >
-                      {activeDeck.sourceType}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-1 text-[11px] text-ink-400">
-                    <span>{activeDeck.slideCount} Slide</span>
-                    <span>•</span>
-                    <span className="truncate max-w-xs">{activeDeck.sourceFileName}</span>
-                    {activeDeck.orientationHandling && (
-                      <>
-                        <span>•</span>
-                        <span className="text-[10px] text-amber-400/90 font-medium">
-                          {activeDeck.orientationHandling === 'split'
-                            ? 'Mode Bagi 2 Slide'
-                            : activeDeck.orientationHandling === 'fit'
-                              ? 'Fit 16:9'
-                              : 'Rotasi'}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
+                <h2 className="text-sm font-bold text-white tracking-tight">
+                  {activeDeck.title}
+                </h2>
 
                 <div className="flex items-center gap-2">
                   <button
@@ -592,19 +465,19 @@ export function LiveWorkspace() {
                         key={index}
                         onClick={() => goLiveSlide(slide, activeDeckSlides, index)}
                         className={clsx(
-                          'relative rounded-xl border p-2 flex flex-col justify-between transition-all cursor-pointer aspect-video select-none group overflow-hidden bg-black/60',
+                          'relative rounded-xl border flex flex-col justify-between transition-all cursor-pointer aspect-video select-none group overflow-hidden bg-black',
                           live
                             ? 'border-amber-400 ring-2 ring-amber-400/50 shadow-lg shadow-amber-500/10'
-                            : 'border-ink-800 hover:border-ink-600 hover:bg-black/80',
+                            : 'border-ink-800 hover:border-ink-600',
                         )}
                       >
                         {/* Slide Image Preview */}
-                        <div className="absolute inset-0 flex items-center justify-center p-1 overflow-hidden pointer-events-none">
+                        <div className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none">
                           {slide.imageUrl ? (
                             <img
                               src={slide.imageUrl}
-                              alt={slide.badge ?? `Slide ${index + 1}`}
-                              className="max-w-full max-h-full object-contain rounded"
+                              alt=""
+                              className="w-full h-full object-contain"
                               loading="lazy"
                             />
                           ) : (
@@ -614,39 +487,17 @@ export function LiveWorkspace() {
                           )}
                         </div>
 
-                        {/* Top Overlay Badges */}
-                        <div className="relative z-10 flex items-center justify-between gap-1">
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-black/75 text-ink-200 border border-white/20 backdrop-blur-xs">
-                              {slide.badge ?? `Slide ${index + 1}`}
-                            </span>
-                            {index < 9 && (
-                              <span
-                                className="text-[9px] font-mono text-ink-300 bg-black/75 px-1 py-0.2 rounded border border-white/20 backdrop-blur-xs"
-                                title={`Tekan tombol ${index + 1} di keyboard untuk langsung tayang`}
-                              >
-                                [{index + 1}]
-                              </span>
-                            )}
-                          </div>
+                        {/* Top Minimal Index */}
+                        <div className="relative z-10 p-2 flex items-center justify-between w-full pointer-events-none">
+                          <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-black/60 text-white/90 backdrop-blur-xs">
+                            {index + 1}
+                          </span>
 
-                          {live ? (
-                            <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-amber-400 bg-black/80 px-1.5 py-0.5 rounded border border-amber-400/50 animate-pulse">
+                          {live && (
+                            <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-amber-400 bg-black/80 px-1.5 py-0.5 rounded border border-amber-400/50">
                               <Radio size={9} /> Live
                             </span>
-                          ) : (
-                            <span className="text-[10px] text-ink-400 font-mono bg-black/70 px-1 rounded">
-                              #{index + 1}
-                            </span>
                           )}
-                        </div>
-
-                        {/* Bottom Overlay Info */}
-                        <div className="relative z-10 mt-auto pt-1 flex items-center justify-between text-[9px] text-ink-300">
-                          <span className="truncate max-w-[120px] bg-black/70 px-1 rounded">
-                            {slide.reference}
-                          </span>
-                          <span className="bg-black/70 px-1 rounded">{slide.slideProgress}</span>
                         </div>
                       </div>
                     )
