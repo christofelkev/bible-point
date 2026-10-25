@@ -1,6 +1,6 @@
 [package]
 name = "bible-point"
-version = "0.1.0"
+version = "0.2.0"
 description = "Project Bible verses to a second screen"
 authors = []
 license = ""
