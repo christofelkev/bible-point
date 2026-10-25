@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { startAutosave } from '../store/persistence'
 import { TopBar } from '../components/control/TopBar'
@@ -6,11 +6,13 @@ import { BibleNavigator } from '../components/control/BibleNavigator'
 import { VerseList } from '../components/control/VerseList'
 import { RightPanel } from '../components/control/RightPanel'
 import { LiveWorkspace } from '../components/live/LiveWorkspace'
+import { SplashScreen } from '../components/control/SplashScreen'
 
 /** The operator's window: browse, select, style, project. */
 export function ControlWindow() {
   const init = useAppStore((s) => s.init)
   const workspaceMode = useAppStore((s) => s.workspaceMode)
+  const [isReady, setIsReady] = useState(false)
 
   // Autosave starts only once hydration has finished; starting it earlier
   // would schedule a write of the state that was just restored.
@@ -23,6 +25,7 @@ export function ControlWindow() {
 
     void init().then(() => {
       if (cancelled) return
+      setIsReady(true)
       stop = startAutosave()
     })
 
@@ -36,6 +39,7 @@ export function ControlWindow() {
 
   return (
     <div className="h-full flex flex-col">
+      <SplashScreen isReady={isReady} />
       <TopBar />
       <div className="flex-1 min-h-0 flex">
         {workspaceMode === 'bible' ? (
