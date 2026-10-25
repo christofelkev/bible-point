@@ -41,7 +41,7 @@ interface Props {
 }
 
 /**
- * The one component that knows what a projected verse looks like.
+ * The one component that knows what a projected verse, lyric, or presentation looks like.
  *
  * It is mounted twice: scaled down inside the operator's live preview, and
  * fullscreen in the output window. Because both mounts share this code, the
@@ -143,16 +143,20 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
     return <div className="absolute inset-0 bg-black" />
   }
 
-  const hasSlide = Boolean(slide && ((slide.lines && slide.lines.length > 0) || slide.imageUrl))
+  const isImageSlide = Boolean(slide?.imageUrl)
+  const hasSlideText = Boolean(slide && !isImageSlide && slide.lines && slide.lines.length > 0)
   const hasVerses = Boolean(verses && verses.length > 0)
-  const showText = mode === 'live' && (hasSlide || hasVerses)
+  const showText = mode === 'live' && (hasSlideText || hasVerses)
 
-  const reference = slide ? (slide.reference ?? '') : (hasVerses ? formatRange(verses) : '')
-  const translationLabel = slide
-    ? (slide.secondaryMeta ?? '')
-    : (hasVerses ? (verses[0]?.translationId.split('-')[1]?.toUpperCase() ?? '') : '')
-  const sectionBadge = slide?.badge
-  const slideProgress = slide?.slideProgress
+  // Reference block is exclusively for Scripture verses (e.g. "Yohanes 3:16 · TB").
+  // Song lyrics and presentation slides must be 100% clean full content on the output screen.
+  const isBibleReading = !slide && hasVerses
+  const reference = isBibleReading ? formatRange(verses) : ''
+  const translationLabel = isBibleReading
+    ? (verses[0]?.translationId.split('-')[1]?.toUpperCase() ?? '')
+    : ''
+
+  const showReference = isBibleReading && layout.referencePosition !== 'hidden' && Boolean(reference)
 
   const justify =
     layout.verticalAlign === 'top' ? 'flex-start'
@@ -196,7 +200,7 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
     return base
   })()
 
-  const referenceBlock = layout.referencePosition !== 'hidden' && (reference || sectionBadge || slideProgress) && (
+  const referenceBlock = showReference && (
     <div
       className="shrink-0 flex items-center flex-wrap gap-2"
       style={{
@@ -209,14 +213,8 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
         marginBottom: layout.referencePosition === 'top' ? '2.2cqh' : 0,
       }}
     >
-      {sectionBadge && (
-        <span className="px-[0.8cqh] py-[0.1cqh] rounded bg-white/20 border border-white/25 text-[0.85em] uppercase font-bold tracking-wider">
-          {sectionBadge}
-        </span>
-      )}
-      {reference && <span>{reference}</span>}
+      <span>{reference}</span>
       {layout.showTranslation && translationLabel ? <span>{` · ${translationLabel}`}</span> : ''}
-      {slideProgress && <span className="opacity-60 text-[0.85em] ml-1">({slideProgress})</span>}
     </div>
   )
 
@@ -236,6 +234,21 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
         />
       )}
 
+      {/* 1. Fullscreen Presentation Slide Image (100% Edge-to-Edge without padding or metadata) */}
+      {mode === 'live' && isImageSlide && (
+        <div
+          className="absolute inset-0 flex items-center justify-center overflow-hidden"
+          style={enterStyle}
+        >
+          <img
+            src={slide!.imageUrl}
+            alt=""
+            className="w-full h-full object-contain select-none pointer-events-none"
+          />
+        </div>
+      )}
+
+      {/* 2. Text Content (Song Lyrics or Bible Verses) */}
       {showText && (
         <div
           ref={flowRef}
@@ -263,33 +276,11 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
               alignItems: crossAlign,
               flexShrink: 0,
               maxWidth: '100%',
-              ...(slide?.imageUrl
-                ? {
-                    flex: 1,
-                    minHeight: 0,
-                    width: '100%',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                  }
-                : {}),
             }}
           >
             {layout.referencePosition === 'top' && referenceBlock}
 
-            {slide?.imageUrl ? (
-              <div
-                className="flex items-center justify-center overflow-hidden flex-1 min-h-0 w-full"
-                style={{
-                  maxWidth: `${layout.maxWidth}cqw`,
-                }}
-              >
-                <img
-                  src={slide.imageUrl}
-                  alt={slide.badge ?? 'Slide'}
-                  className="max-w-full max-h-full object-contain select-none pointer-events-none rounded-[0.5cqh] shadow-2xl"
-                />
-              </div>
-            ) : slide ? (
+            {slide ? (
               <div
                 style={{
                   maxWidth: `${layout.maxWidth}cqw`,
