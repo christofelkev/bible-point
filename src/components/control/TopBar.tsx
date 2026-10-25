@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Search, CornerDownLeft, BookOpen, Radio } from 'lucide-react'
+import { Search, CornerDownLeft, BookOpen, Radio, Settings } from 'lucide-react'
 import clsx from 'clsx'
 import { useAppStore } from '../../store/useAppStore'
 import { Select } from '../ui/controls'
 import { OutputButton } from './OutputButton'
+import { SettingsModal } from './SettingsModal'
 
 /**
  * The omnibox doubles as reference jump and full-text search.
@@ -24,6 +25,7 @@ export function TopBar() {
 
   const [query, setQuery] = useState('')
   const [flash, setFlash] = useState<'none' | 'miss'>('none')
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
   const installed = translations.filter((t) => t.installed)
 
@@ -131,7 +133,22 @@ export function TopBar() {
 
       <div className="flex-1" />
 
-      <OutputButton />
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setIsSettingsOpen(true)}
+          title="Pengaturan"
+          className="h-8 w-8 rounded-lg border border-ink-800 bg-ink-950 hover:bg-ink-900 text-ink-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+        >
+          <Settings size={15} />
+        </button>
+
+        <OutputButton />
+      </div>
+
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
     </header>
   )
 }

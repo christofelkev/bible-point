@@ -26,6 +26,8 @@ export interface ProjectionSlide {
   lines: string[]
   /** Section label e.g. "Verse 1", "Chorus", "Bridge", "Slide 1" */
   badge?: string
+  /** Whether this slide marks the start of a section/group */
+  isSectionStart?: boolean
   /** Reference or metadata e.g. "Goodness of God — Bethel Music" or presentation file name */
   reference?: string
   /** Secondary label e.g. "TB", "CCLI #123456", "PDF" */

@@ -10,11 +10,11 @@ export function normalizeBadge(raw: string): string {
 
   if (lower.startsWith('verse') || lower.startsWith('bait') || lower.startsWith('v')) {
     const num = trimmed.match(/\d+/)
-    return num ? `Verse ${num[0]}` : 'Verse'
+    return num ? `Verse ${num[0]}` : 'Verse 1'
   }
   if (lower.startsWith('chorus') || lower.startsWith('reff') || lower.startsWith('ref') || lower === 'c') {
     const num = trimmed.match(/\d+/)
-    return num ? `Chorus ${num[0]}` : 'Chorus'
+    return num ? `Chorus ${num[0]}` : 'Chorus 1'
   }
   if (lower.startsWith('pre-chorus') || lower.startsWith('prechorus') || lower.startsWith('pre chorus')) {
     return 'Pre-Chorus'
@@ -41,16 +41,18 @@ export function parseRawLyrics(raw: string): SongSection[] {
   const sections: SongSection[] = []
 
   let currentLabel: string | null = null
+  let activeSectionLabel = 'Verse 1'
   let currentLines: string[] = []
-  let autoVerseIndex = 1
 
   function flush() {
     const cleanedLines = currentLines.map((l) => l.trim()).filter(Boolean)
     if (cleanedLines.length > 0) {
-      const label = currentLabel ?? `Verse ${autoVerseIndex++}`
+      if (currentLabel) {
+        activeSectionLabel = currentLabel
+      }
       sections.push({
         id: `sec-${sections.length + 1}`,
-        label,
+        label: activeSectionLabel,
         lines: cleanedLines,
       })
     }
@@ -65,7 +67,7 @@ export function parseRawLyrics(raw: string): SongSection[] {
     if (
       (line.startsWith('[') && line.endsWith(']')) ||
       (line.endsWith(':') && line.length < 30) ||
-      HEADER_REGEX.test(line) && /^(verse|bait|chorus|reff|ref|bridge|pre-chorus|tag|outro|ending|intro)/i.test(line)
+      (HEADER_REGEX.test(line) && /^(verse|bait|chorus|reff|ref|bridge|pre-chorus|tag|outro|ending|intro)/i.test(line))
     ) {
       flush()
       currentLabel = normalizeBadge(line)
@@ -144,9 +146,80 @@ export function compileSongSlides(
   return orderedSections.map((sec, idx) => ({
     kind: 'song',
     badge: sec.label,
+    isSectionStart: idx === 0 || sec.label !== orderedSections[idx - 1]?.label,
     reference: refText,
     secondaryMeta: secMeta,
     slideProgress: `${idx + 1}/${total}`,
     lines: sec.lines,
   }))
+}
+
+/**
+ * Applies a section tag to a slide at targetIndex and cascades it forward
+ * until the next slide marked as a section start.
+ */
+export function applySectionTag(
+  slides: ProjectionSlide[],
+  targetIndex: number,
+  newBadge: string,
+): ProjectionSlide[] {
+  if (targetIndex < 0 || targetIndex >= slides.length) return slides
+
+  const nextSlides = slides.map((s) => ({ ...s }))
+
+  nextSlides[targetIndex].badge = newBadge
+  nextSlides[targetIndex].isSectionStart = true
+
+  for (let i = targetIndex + 1; i < nextSlides.length; i++) {
+    if (nextSlides[i].isSectionStart) {
+      break
+    }
+    nextSlides[i].badge = newBadge
+  }
+
+  return nextSlides
+}
+
+/**
+ * Removes a section start at targetIndex and merges it into the preceding section.
+ */
+export function removeSectionStart(
+  slides: ProjectionSlide[],
+  targetIndex: number,
+): ProjectionSlide[] {
+  if (targetIndex <= 0 || targetIndex >= slides.length) return slides
+
+  const nextSlides = slides.map((s) => ({ ...s }))
+  const prevBadge = nextSlides[targetIndex - 1].badge ?? 'Verse 1'
+
+  nextSlides[targetIndex].isSectionStart = false
+  nextSlides[targetIndex].badge = prevBadge
+
+  for (let i = targetIndex + 1; i < nextSlides.length; i++) {
+    if (nextSlides[i].isSectionStart) {
+      break
+    }
+    nextSlides[i].badge = prevBadge
+  }
+
+  return nextSlides
+}
+
+/**
+ * Converts slide blocks back to raw lyrics with bracket headers.
+ */
+export function serializeSlidesToRawLyrics(slides: ProjectionSlide[]): string {
+  const parts: string[] = []
+  let currentBadge: string | null = null
+
+  for (const slide of slides) {
+    if (slide.badge && slide.badge !== currentBadge) {
+      currentBadge = slide.badge
+      parts.push(`[${currentBadge}]\n${slide.lines.join('\n')}`)
+    } else {
+      parts.push(slide.lines.join('\n'))
+    }
+  }
+
+  return parts.join('\n\n')
 }

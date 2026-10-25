@@ -28,6 +28,7 @@ function snapshot(state: ReturnType<typeof useAppStore.getState>): PersistedSett
     selectedMonitorId: state.selectedMonitorId,
     workspaceMode: state.workspaceMode,
     mediaLibrary: state.mediaLibrary,
+    sectionHotkeys: state.sectionHotkeys,
   }
 }
 

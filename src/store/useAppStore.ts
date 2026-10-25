@@ -17,6 +17,7 @@ import { songStore } from '../services/songs'
 import { DEFAULT_SONGS } from '../data/defaultSongs'
 import type { PresentationDeck } from '../types/presentation'
 import { presentationStore } from '../services/presentation'
+import { DEFAULT_SECTION_HOTKEYS } from '../data/songHotkeys'
 
 export type PlaylistItemKind = 'bible' | 'song' | 'presentation'
 
@@ -75,6 +76,7 @@ interface AppState {
   // --- Songs (Live Mode) ---------------------------------------------------
   songs: Song[]
   activeSongId: string | null
+  sectionHotkeys: Record<string, string>
 
   // --- Presentations (Live Mode) -------------------------------------------
   presentations: PresentationDeck[]
@@ -114,6 +116,7 @@ interface AppState {
   saveSong: (song: Song) => Promise<void>
   deleteSong: (id: string) => Promise<void>
   setActiveSongId: (id: string | null) => void
+  setSectionHotkeys: (hotkeys: Record<string, string>) => void
 
   loadPresentations: () => Promise<void>
   saveDeck: (deck: PresentationDeck) => Promise<void>
@@ -205,6 +208,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   presentationSubTab: 'songs',
   songs: [],
   activeSongId: null,
+  sectionHotkeys: DEFAULT_SECTION_HOTKEYS,
   presentations: [],
   activeDeckId: null,
 
@@ -262,6 +266,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         selectedMonitorId: saved.selectedMonitorId,
         workspaceMode: saved.workspaceMode ?? 'bible',
         mediaLibrary,
+        sectionHotkeys: saved.sectionHotkeys ?? DEFAULT_SECTION_HOTKEYS,
       })
 
       // Playlist ids must not collide with ids minted later this session.
@@ -447,6 +452,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setActiveSongId(id) {
     set({ activeSongId: id })
+  },
+
+  setSectionHotkeys(hotkeys) {
+    set({ sectionHotkeys: hotkeys })
   },
 
   async loadPresentations() {

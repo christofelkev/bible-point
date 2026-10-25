@@ -18,24 +18,9 @@ import type { Song } from '../../types/song'
 import { SongEditorModal } from './SongEditorModal'
 import { MediaBinPanel } from './MediaBinPanel'
 import { ImportPresentationModal } from './ImportPresentationModal'
-
-function getBadgeColor(badge?: string) {
-  if (!badge) return 'bg-ink-800 text-ink-300 border-ink-700'
-  const b = badge.toLowerCase()
-  if (b.includes('chorus') || b.includes('reff')) {
-    return 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-  }
-  if (b.includes('bridge')) {
-    return 'bg-purple-500/20 text-purple-300 border-purple-500/40'
-  }
-  if (b.includes('verse') || b.includes('bait')) {
-    return 'bg-blue-500/20 text-blue-300 border-blue-500/40'
-  }
-  if (b.includes('tag') || b.includes('outro')) {
-    return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-  }
-  return 'bg-ink-800 text-ink-300 border-ink-700'
-}
+import { SectionContextMenu } from './SectionContextMenu'
+import { getGroupColorClasses } from '../../data/songHotkeys'
+import { applySectionTag, removeSectionStart, serializeSlidesToRawLyrics } from '../../services/songs/lyricParser'
 
 export function LiveWorkspace() {
   const presentationSubTab = useAppStore((s) => s.presentationSubTab)
@@ -48,6 +33,7 @@ export function LiveWorkspace() {
   const saveSong = useAppStore((s) => s.saveSong)
   const deleteSong = useAppStore((s) => s.deleteSong)
   const addSongToPlaylist = useAppStore((s) => s.addSongToPlaylist)
+  const sectionHotkeys = useAppStore((s) => s.sectionHotkeys)
 
   // Presentations store
   const presentations = useAppStore((s) => s.presentations)
@@ -63,6 +49,11 @@ export function LiveWorkspace() {
   const [isEditorOpen, setIsEditorOpen] = useState(false)
   const [editingSong, setEditingSong] = useState<Song | null>(null)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{
+    x: number
+    y: number
+    slideIndex: number
+  } | null>(null)
 
   // Live state
   const liveSlide = useAppStore((s) => s.liveSlide)
@@ -129,6 +120,38 @@ export function LiveWorkspace() {
     if (!activeDeck) return
     if (window.confirm(`Hapus presentasi "${activeDeck.title}" dan seluruh gambarnya?`)) {
       void deleteDeck(activeDeck.id)
+    }
+  }
+
+  const handleSelectGroup = (groupName: string) => {
+    if (!contextMenu || !activeSong) return
+    const newSlides = applySectionTag(activeSong.slides, contextMenu.slideIndex, groupName)
+    const updatedSong: Song = {
+      ...activeSong,
+      slides: newSlides,
+      rawLyrics: serializeSlidesToRawLyrics(newSlides),
+      updatedAt: new Date().toISOString(),
+    }
+    void saveSong(updatedSong)
+
+    if (mode === 'live' && activeLiveSlideIndex >= 0 && activeLiveSlideIndex < newSlides.length) {
+      goLiveSlide(newSlides[activeLiveSlideIndex], newSlides, activeLiveSlideIndex)
+    }
+  }
+
+  const handleRemoveSectionStart = () => {
+    if (!contextMenu || !activeSong) return
+    const newSlides = removeSectionStart(activeSong.slides, contextMenu.slideIndex)
+    const updatedSong: Song = {
+      ...activeSong,
+      slides: newSlides,
+      rawLyrics: serializeSlidesToRawLyrics(newSlides),
+      updatedAt: new Date().toISOString(),
+    }
+    void saveSong(updatedSong)
+
+    if (mode === 'live' && activeLiveSlideIndex >= 0 && activeLiveSlideIndex < newSlides.length) {
+      goLiveSlide(newSlides[activeLiveSlideIndex], newSlides, activeLiveSlideIndex)
     }
   }
 
@@ -342,12 +365,21 @@ export function LiveWorkspace() {
                 <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
                   {activeSong.slides.map((slide, index) => {
                     const live = isSlideLive(slide, index)
-                    const badgeStyle = getBadgeColor(slide.badge)
+                    const badgeStyle = getGroupColorClasses(slide.badge)
+                    const hotkey = sectionHotkeys[slide.badge ?? '']
 
                     return (
                       <div
                         key={index}
                         onClick={() => goLiveSlide(slide, activeSong.slides, index)}
+                        onContextMenu={(e) => {
+                          e.preventDefault()
+                          setContextMenu({
+                            x: e.clientX,
+                            y: e.clientY,
+                            slideIndex: index,
+                          })
+                        }}
                         className={clsx(
                           'relative rounded-xl border p-4 flex flex-col justify-between transition-all cursor-pointer aspect-video select-none group',
                           live
@@ -358,11 +390,16 @@ export function LiveWorkspace() {
                         <div className="flex items-center justify-between gap-1 mb-2">
                           <span
                             className={clsx(
-                              'text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border',
+                              'text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border flex items-center gap-1.5',
                               badgeStyle,
                             )}
                           >
-                            {slide.badge ?? `Slide ${index + 1}`}
+                            <span>{slide.badge ?? `Slide ${index + 1}`}</span>
+                            {hotkey && (
+                              <kbd className="text-[9px] font-mono px-1 py-0.2 rounded bg-black/40 border border-white/20 text-white font-bold">
+                                {hotkey}
+                              </kbd>
+                            )}
                           </span>
 
                           {live && (
@@ -530,6 +567,20 @@ export function LiveWorkspace() {
           void saveDeck(deck)
         }}
       />
+
+      {/* Context Menu Tag Seksi Lagu */}
+      {contextMenu && activeSong && (
+        <SectionContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          targetIndex={contextMenu.slideIndex}
+          currentBadge={activeSong.slides[contextMenu.slideIndex]?.badge}
+          isSectionStart={activeSong.slides[contextMenu.slideIndex]?.isSectionStart}
+          onSelectGroup={handleSelectGroup}
+          onRemoveSectionStart={handleRemoveSectionStart}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   )
 }

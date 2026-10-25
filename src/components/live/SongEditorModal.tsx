@@ -1,7 +1,16 @@
 import { useState, useMemo } from 'react'
 import { X, Music, Check, ListMusic } from 'lucide-react'
 import type { Song } from '../../types/song'
-import { parseRawLyrics, compileSongSlides } from '../../services/songs/lyricParser'
+import {
+  parseRawLyrics,
+  compileSongSlides,
+  applySectionTag,
+  removeSectionStart,
+  serializeSlidesToRawLyrics,
+} from '../../services/songs/lyricParser'
+import { SectionContextMenu } from './SectionContextMenu'
+import { getGroupColorClasses } from '../../data/songHotkeys'
+import { useAppStore } from '../../store/useAppStore'
 
 interface Props {
   song?: Song | null
@@ -12,13 +21,19 @@ interface Props {
 
 export function SongEditorModal({ song, isOpen, onClose, onSave }: Props) {
   const isEditing = Boolean(song)
+  const sectionHotkeys = useAppStore((s) => s.sectionHotkeys)
 
   const [title, setTitle] = useState(song?.title ?? '')
   const [rawLyrics, setRawLyrics] = useState(
     song?.rawLyrics ??
-      song?.slides.map((s) => `[${s.badge ?? 'Verse'}]\n${s.lines.join('\n')}`).join('\n\n') ??
+      song?.slides.map((s) => `[${s.badge ?? 'Verse 1'}]\n${s.lines.join('\n')}`).join('\n\n') ??
       '',
   )
+  const [contextMenu, setContextMenu] = useState<{
+    x: number
+    y: number
+    slideIndex: number
+  } | null>(null)
 
   const parsedSections = useMemo(() => parseRawLyrics(rawLyrics), [rawLyrics])
   const previewSlides = useMemo(
@@ -30,6 +45,18 @@ export function SongEditorModal({ song, isOpen, onClose, onSave }: Props) {
       ),
     [parsedSections, title],
   )
+
+  const handleSelectGroup = (groupName: string) => {
+    if (!contextMenu) return
+    const newSlides = applySectionTag(previewSlides, contextMenu.slideIndex, groupName)
+    setRawLyrics(serializeSlidesToRawLyrics(newSlides))
+  }
+
+  const handleRemoveSectionStart = () => {
+    if (!contextMenu) return
+    const newSlides = removeSectionStart(previewSlides, contextMenu.slideIndex)
+    setRawLyrics(serializeSlidesToRawLyrics(newSlides))
+  }
 
   const handleSave = () => {
     if (!title.trim()) return
@@ -122,25 +149,45 @@ export function SongEditorModal({ song, isOpen, onClose, onSave }: Props) {
               </div>
             ) : (
               <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
-                {previewSlides.map((slide, sIdx) => (
-                  <div
-                    key={sIdx}
-                    className="p-3 rounded-xl bg-ink-900/60 border border-ink-800/80 flex flex-col justify-between"
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-ink-800 text-amber-300 border border-amber-500/20">
-                        {slide.badge}
-                      </span>
+                {previewSlides.map((slide, sIdx) => {
+                  const badgeStyle = getGroupColorClasses(slide.badge)
+                  const hotkey = sectionHotkeys[slide.badge ?? '']
+
+                  return (
+                    <div
+                      key={sIdx}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        setContextMenu({
+                          x: e.clientX,
+                          y: e.clientY,
+                          slideIndex: sIdx,
+                        })
+                      }}
+                      className="p-3 rounded-xl bg-ink-900/60 border border-ink-800/80 flex flex-col justify-between cursor-context-menu hover:border-ink-600 transition-colors"
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded border flex items-center gap-1.5 ${badgeStyle}`}
+                        >
+                          <span>{slide.badge}</span>
+                          {hotkey && (
+                            <kbd className="text-[9px] font-mono px-1 py-0.2 rounded bg-black/40 border border-white/20 text-white font-bold">
+                              {hotkey}
+                            </kbd>
+                          )}
+                        </span>
+                      </div>
+                      <div className="text-xs text-ink-200 space-y-0.5 my-1">
+                        {slide.lines.map((line, lIdx) => (
+                          <div key={lIdx} className="truncate">
+                            {line}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="text-xs text-ink-200 space-y-0.5 my-1">
-                      {slide.lines.map((line, lIdx) => (
-                        <div key={lIdx} className="truncate">
-                          {line}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -163,6 +210,19 @@ export function SongEditorModal({ song, isOpen, onClose, onSave }: Props) {
           </button>
         </div>
       </div>
+
+      {contextMenu && (
+        <SectionContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          targetIndex={contextMenu.slideIndex}
+          currentBadge={previewSlides[contextMenu.slideIndex]?.badge}
+          isSectionStart={previewSlides[contextMenu.slideIndex]?.isSectionStart}
+          onSelectGroup={handleSelectGroup}
+          onRemoveSectionStart={handleRemoveSectionStart}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   )
 }

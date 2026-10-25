@@ -31,6 +31,7 @@ export interface PersistedSettings {
   selectedMonitorId: string | null
   workspaceMode?: 'bible' | 'live'
   mediaLibrary?: Background[]
+  sectionHotkeys?: Record<string, string>
 }
 
 export interface SettingsStore {

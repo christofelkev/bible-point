@@ -95,6 +95,30 @@ function useProjectionShortcuts() {
         return
       }
 
+      // ProPresenter style letter hotkeys for song sections (without modifiers)
+      if (/^[a-zA-Z]$/.test(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
+        const state = useAppStore.getState()
+        if (state.workspaceMode === 'live' && state.presentationSubTab === 'songs') {
+          const pressed = event.key.toUpperCase()
+          const matchedEntry = Object.entries(state.sectionHotkeys).find(
+            ([, k]) => k.toUpperCase() === pressed,
+          )
+          if (matchedEntry) {
+            const badgeTarget = matchedEntry[0].toLowerCase()
+            const activeSong = state.songs.find((s) => s.id === state.activeSongId)
+            const slides = state.liveSongSlides.length > 0 ? state.liveSongSlides : (activeSong?.slides ?? [])
+            const foundIdx = slides.findIndex(
+              (s) => s.badge?.toLowerCase() === badgeTarget || s.badge?.toLowerCase().startsWith(badgeTarget),
+            )
+            if (foundIdx >= 0) {
+              event.preventDefault()
+              state.goLiveSlide(slides[foundIdx], slides, foundIdx)
+              return
+            }
+          }
+        }
+      }
+
       // Quick section jumps with Shift
       if (event.shiftKey && !event.ctrlKey && !event.metaKey) {
         if (event.key === 'C' || event.key === 'c') {
