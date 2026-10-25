@@ -11,8 +11,6 @@ interface Props {
 }
 
 export function SongEditorModal({ song, isOpen, onClose, onSave }: Props) {
-  if (!isOpen) return null
-
   const isEditing = Boolean(song)
 
   const [title, setTitle] = useState(song?.title ?? '')
@@ -59,6 +57,8 @@ export function SongEditorModal({ song, isOpen, onClose, onSave }: Props) {
     onSave(newSong)
     onClose()
   }
+
+  if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">

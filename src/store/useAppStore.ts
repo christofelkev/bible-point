@@ -15,16 +15,19 @@ import { formatRange } from '../types/bible'
 import type { Song } from '../types/song'
 import { songStore } from '../services/songs'
 import { DEFAULT_SONGS } from '../data/defaultSongs'
+import type { PresentationDeck } from '../types/presentation'
+import { presentationStore } from '../services/presentation'
 
-export type PlaylistItemKind = 'bible' | 'song'
+export type PlaylistItemKind = 'bible' | 'song' | 'presentation'
 
-/** One entry in the unified service order (Scripture or Song). */
+/** One entry in the unified service order (Scripture, Song, or Presentation). */
 export interface PlaylistItem {
   id: string
   label: string
   kind?: PlaylistItemKind
   verses?: Verse[]
   songId?: string
+  deckId?: string
   slides?: ProjectionSlide[]
   artist?: string
   /** Theme override; falls back to the active theme when absent. */
@@ -65,12 +68,17 @@ interface AppState {
   /** Working copy of the active theme; edits land here before being saved. */
   theme: Theme
 
-  // --- Workspace mode ------------------------------------------------------
+  // --- Workspace mode & Sub-tabs -------------------------------------------
   workspaceMode: AppWorkspaceMode
+  presentationSubTab: 'songs' | 'presentations'
 
   // --- Songs (Live Mode) ---------------------------------------------------
   songs: Song[]
   activeSongId: string | null
+
+  // --- Presentations (Live Mode) -------------------------------------------
+  presentations: PresentationDeck[]
+  activeDeckId: string | null
 
   // --- Projection ----------------------------------------------------------
   mode: ProjectionMode
@@ -100,11 +108,18 @@ interface AppState {
   // --- Actions -------------------------------------------------------------
   init: () => Promise<void>
   setWorkspaceMode: (mode: AppWorkspaceMode) => void
+  setPresentationSubTab: (tab: 'songs' | 'presentations') => void
 
   loadSongs: () => Promise<void>
   saveSong: (song: Song) => Promise<void>
   deleteSong: (id: string) => Promise<void>
   setActiveSongId: (id: string | null) => void
+
+  loadPresentations: () => Promise<void>
+  saveDeck: (deck: PresentationDeck) => Promise<void>
+  deleteDeck: (deckId: string) => Promise<void>
+  setActiveDeckId: (id: string | null) => void
+  addDeckToPlaylist: (deck: PresentationDeck) => void
 
   setTranslation: (id: string) => Promise<void>
   openChapter: (bookId: string, chapter: number) => Promise<void>
@@ -187,8 +202,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   installError: {},
 
   workspaceMode: 'bible',
+  presentationSubTab: 'songs',
   songs: [],
   activeSongId: null,
+  presentations: [],
+  activeDeckId: null,
 
   themes: BUILTIN_THEMES.map(cloneTheme),
   activeThemeId: BUILTIN_THEMES[0].id,
@@ -290,6 +308,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       activeSongId: songs[0]?.id ?? null,
     })
 
+    // Restore presentations from persistent storage
+    const loadedDecks = await presentationStore.load()
+    const presentations = loadedDecks ?? []
+    set({
+      presentations,
+      activeDeckId: presentations[0]?.id ?? null,
+    })
+
     // Files the operator tried and moved on from would otherwise pile up
     // forever. Runs after hydration so every live reference is already known.
     const mediaThemes: Theme[] = get().mediaLibrary.map((bg) => ({
@@ -303,25 +329,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     const books = await bibleSource.getBooks(id)
     set({ activeTranslationId: id, books })
 
-    // The previously open book may be absent from this translation — a New
-    // Testament-only pack has no Genesis — so fall back to its first book.
-    const current = books.find((b) => b.id === get().activeBookId)
-    const target = current ?? books[0]
-    if (!target) {
-      set({ chapterVerses: [] })
-      return
+    // Keep the book/chapter if the newly chosen translation has it; jump to
+    // Genesis 1 when switching to a translation that lacks this book entirely.
+    const targetBook = books.find((b) => b.id === get().activeBookId) ?? books[0]
+    if (targetBook) {
+      const chapter = Math.min(get().activeChapter, targetBook.chapterCount)
+      await get().openChapter(targetBook.id, chapter)
+    } else {
+      set({ chapterVerses: [], selection: [] })
     }
-    const chapter = Math.min(get().activeChapter, target.chapterCount)
-    await get().openChapter(target.id, current ? chapter : 1)
   },
 
   async openChapter(bookId, chapter) {
-    const translationId = get().activeTranslationId
-    if (!translationId) return
-
-    set({ loadingChapter: true, activeBookId: bookId, activeChapter: chapter })
-    const verses = await bibleSource.getChapter(translationId, bookId, chapter)
-    set({ chapterVerses: verses, loadingChapter: false, selection: [] })
+    set({ activeBookId: bookId, activeChapter: chapter, loadingChapter: true })
+    const chapterVerses = await bibleSource.getChapter(get().activeTranslationId, bookId, chapter)
+    set({ chapterVerses, loadingChapter: false, selection: [] })
   },
 
   async stepChapter(delta) {
@@ -329,14 +351,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     const book = books.find((b) => b.id === activeBookId)
     if (!book) return false
 
-    const target = activeChapter + delta
-    if (target >= 1 && target <= book.chapterCount) {
-      await get().openChapter(activeBookId, target)
+    const targetChapter = activeChapter + delta
+    if (targetChapter >= 1 && targetChapter <= book.chapterCount) {
+      await get().openChapter(book.id, targetChapter)
       return true
     }
 
-    // Roll over into the neighbouring book so paging never dead-ends.
-    const index = books.findIndex((b) => b.id === activeBookId)
+    const index = books.indexOf(book)
     const neighbour = books[index + delta]
     if (!neighbour) return false
 
@@ -378,8 +399,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ searching: true })
     const results = await bibleSource.search(get().activeTranslationId, query)
     // Discard results for a query the operator has already moved on from.
-    if (get().searchQuery !== query) return
-    set({ searchResults: results, searching: false })
+    if (get().searchQuery === query) {
+      set({ searchResults: results, searching: false })
+    }
   },
 
   clearSearch() {
@@ -388,6 +410,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setWorkspaceMode(mode) {
     set({ workspaceMode: mode })
+  },
+
+  setPresentationSubTab(tab) {
+    set({ presentationSubTab: tab })
   },
 
   async loadSongs() {
@@ -407,7 +433,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     } else {
       nextSongs = [song, ...songs]
     }
-    set({ songs: nextSongs, activeSongId: song.id })
+    set({ songs: nextSongs, activeSongId: song.id, presentationSubTab: 'songs' })
     await songStore.save(nextSongs)
   },
 
@@ -421,6 +447,62 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setActiveSongId(id) {
     set({ activeSongId: id })
+  },
+
+  async loadPresentations() {
+    const loaded = await presentationStore.load()
+    if (loaded) {
+      set({ presentations: loaded })
+    }
+  },
+
+  async saveDeck(deck) {
+    const list = [...get().presentations]
+    const idx = list.findIndex((d) => d.id === deck.id)
+    if (idx >= 0) {
+      list[idx] = deck
+    } else {
+      list.unshift(deck)
+    }
+    set({ presentations: list, activeDeckId: deck.id, presentationSubTab: 'presentations' })
+    await presentationStore.save(list)
+  },
+
+  async deleteDeck(id) {
+    const list = get().presentations.filter((d) => d.id !== id)
+    const nextActive = get().activeDeckId === id ? (list[0]?.id ?? null) : get().activeDeckId
+    set({ presentations: list, activeDeckId: nextActive })
+    await presentationStore.save(list)
+    await presentationStore.deleteDeck(id)
+  },
+
+  setActiveDeckId(id) {
+    set({ activeDeckId: id })
+  },
+
+  addDeckToPlaylist(deck) {
+    const state = get()
+    const slides: ProjectionSlide[] = deck.slides.map((s, idx) => ({
+      kind: 'presentation',
+      lines: [],
+      imageUrl: s.imageUrl,
+      imagePath: s.imagePath,
+      badge: s.badge ?? `Slide ${idx + 1}`,
+      reference: deck.title,
+      slideProgress: `${idx + 1} / ${deck.slides.length}`,
+    }))
+
+    const item: PlaylistItem = {
+      id: nextId(),
+      label: deck.title,
+      kind: 'presentation',
+      deckId: deck.id,
+      artist: `${deck.sourceType.toUpperCase()} · ${deck.slideCount} Slide`,
+      slides,
+      themeId: state.activeThemeId,
+      backgroundOverride: state.liveBackgroundOverride ?? undefined,
+    }
+    set({ playlist: [...state.playlist, item], panelTab: 'playlist' })
   },
 
   async jumpToReference(reference) {
@@ -456,7 +538,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     const slideIdx =
       index !== undefined
         ? index
-        : slides.findIndex((s) => s === slide || (s.badge === slide.badge && s.lines.join() === slide.lines.join()))
+        : slides.findIndex(
+            (s) =>
+              s === slide ||
+              (s.imageUrl && s.imageUrl === slide.imageUrl) ||
+              (s.badge === slide.badge && s.lines.join() === slide.lines.join()),
+          )
 
     set({
       liveSlide: slide,
@@ -471,9 +558,27 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   jumpToSlideIndex(index) {
-    const { liveSongSlides, songs, activeSongId } = get()
-    const activeSong = songs.find((s) => s.id === activeSongId)
-    const slides = liveSongSlides.length > 0 ? liveSongSlides : (activeSong?.slides ?? [])
+    const { liveSongSlides, songs, activeSongId, presentations, activeDeckId, presentationSubTab } = get()
+    let slides = liveSongSlides
+    if (slides.length === 0) {
+      if (presentationSubTab === 'presentations') {
+        const deck = presentations.find((d) => d.id === activeDeckId)
+        if (deck) {
+          slides = deck.slides.map((s, idx) => ({
+            kind: 'presentation',
+            lines: [],
+            imageUrl: s.imageUrl,
+            imagePath: s.imagePath,
+            badge: s.badge ?? `Slide ${idx + 1}`,
+            reference: deck.title,
+            slideProgress: `${idx + 1} / ${deck.slides.length}`,
+          }))
+        }
+      } else {
+        const activeSong = songs.find((s) => s.id === activeSongId)
+        slides = activeSong?.slides ?? []
+      }
+    }
     if (index >= 0 && index < slides.length) {
       get().goLiveSlide(slides[index], slides, index)
     }
@@ -498,7 +603,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   async stepLive(delta) {
     const { liveSlide, liveSongSlides, activeLiveSlideIndex, liveVerses, chapterVerses } = get()
 
-    // 1. If currently projecting a song slide, step within the song slides
+    // 1. If currently projecting a song or presentation slide, step within the slides
     if (liveSlide != null && liveSongSlides.length > 0) {
       const target = activeLiveSlideIndex + delta
       if (target >= 0 && target < liveSongSlides.length) {
@@ -525,10 +630,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       (v) => v.verse >= targetStart && v.verse < targetStart + size,
     )
 
-    // Running off the end of a chapter used to do nothing at all, which left
-    // the operator stranded mid-service whenever a reading crossed a chapter
-    // boundary — they had to leave the transport, find the next chapter, and
-    // reselect by hand while the congregation waited.
     if (next.length === 0) {
       const bookId = get().activeBookId
       const chapter = get().activeChapter
@@ -537,8 +638,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       const fresh = get().chapterVerses
       next = delta > 0 ? fresh.slice(0, size) : fresh.slice(-size)
 
-      // A chapter with no readable verses would otherwise strand the operator
-      // somewhere they did not ask to be, so put them back.
       if (next.length === 0) {
         await get().openChapter(bookId, chapter)
         return
@@ -583,13 +682,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ outputOpen: false })
   },
 
-  publish() {
-    const { mode, liveVerses, liveSlide, theme, liveBackgroundOverride, revision } = get()
-    const effectiveTheme = liveBackgroundOverride ? { ...theme, background: liveBackgroundOverride } : theme
-    const snapshot: ProjectionState = { mode, verses: liveVerses, slide: liveSlide, theme: effectiveTheme, revision }
-    projectionChannel.publish(snapshot)
-  },
-
   applyTheme(id) {
     const preset = get().themes.find((t) => t.id === id)
     if (!preset) return
@@ -603,81 +695,90 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   patchTypography(patch) {
-    const theme = get().theme
+    const { theme } = get()
     set({ theme: { ...theme, typography: { ...theme.typography, ...patch } } })
     get().publish()
   },
 
   patchLayout(patch) {
-    const theme = get().theme
+    const { theme } = get()
     set({ theme: { ...theme, layout: { ...theme.layout, ...patch } } })
     get().publish()
   },
 
   patchOverlay(patch) {
-    const theme = get().theme
+    const { theme } = get()
     set({ theme: { ...theme, overlay: { ...theme.overlay, ...patch } } })
     get().publish()
   },
 
   patchTransition(patch) {
-    const theme = get().theme
+    const { theme } = get()
     set({ theme: { ...theme, transition: { ...theme.transition, ...patch } } })
     get().publish()
   },
 
   setBackground(background) {
-    set({ theme: { ...get().theme, background } })
+    const { theme } = get()
+    set({ theme: { ...theme, background } })
     get().publish()
   },
 
   setLiveBackgroundOverride(background) {
-    set({ liveBackgroundOverride: background, revision: get().revision + 1 })
+    set({ liveBackgroundOverride: background })
     get().publish()
   },
 
   addMediaAsset(background) {
-    const mediaLibrary = [background, ...get().mediaLibrary]
-    set({ mediaLibrary })
+    const { mediaLibrary } = get()
+    set({ mediaLibrary: [background, ...mediaLibrary] })
   },
 
   removeMediaAsset(index) {
-    const mediaLibrary = get().mediaLibrary.filter((_, i) => i !== index)
-    set({ mediaLibrary })
+    const { mediaLibrary } = get()
+    const next = [...mediaLibrary]
+    next.splice(index, 1)
+    set({ mediaLibrary: next })
   },
 
   saveThemeAsPreset(name) {
-    const id = `custom-${Date.now()}`
-    // The working theme is usually a clone of a built-in and carries its
-    // `builtin` flag. Copied through, that flag would exclude the new preset
-    // from persistence, export and deletion at once — the operator would save
-    // a preset, see it appear, and find it gone after a restart.
-    const saved = { ...cloneTheme(get().theme), id, name, builtin: undefined }
-    set({ themes: [...get().themes, saved], activeThemeId: id, theme: cloneTheme(saved) })
+    const { theme, themes } = get()
+    const custom: Theme = {
+      ...cloneTheme(theme),
+      id: `custom-${Date.now()}`,
+      name,
+      builtin: false,
+    }
+    set({ themes: [...themes, custom], activeThemeId: custom.id })
   },
 
   deleteTheme(id) {
-    const target = get().themes.find((t) => t.id === id)
-    // Built-ins come from code and would simply reappear on next launch.
-    if (!target || target.builtin) return
+    const { themes, activeThemeId } = get()
+    const remaining = themes.filter((t) => t.id !== id)
+    const nextActive = activeThemeId === id ? remaining[0].id : activeThemeId
+    const nextTheme =
+      activeThemeId === id
+        ? cloneTheme(remaining[0])
+        : get().theme
 
-    const themes = get().themes.filter((t) => t.id !== id)
-    set({ themes })
+    set({ themes: remaining, activeThemeId: nextActive, theme: nextTheme })
+    get().publish()
+  },
 
-    // Deleting the preset currently in use would leave the design panel
-    // pointing at nothing, so fall back to the first built-in.
-    if (get().activeThemeId === id) {
-      const fallback = themes[0]
-      set({ activeThemeId: fallback.id, theme: cloneTheme(fallback) })
-      get().publish()
+  publish() {
+    const { mode, liveVerses, liveSlide, theme, liveBackgroundOverride, revision } = get()
+    const activeTheme = liveBackgroundOverride
+      ? { ...theme, background: liveBackgroundOverride }
+      : theme
+
+    const snapshot: ProjectionState = {
+      mode,
+      verses: liveVerses,
+      slide: liveSlide,
+      theme: activeTheme,
+      revision,
     }
-
-    // Playlist entries referencing it fall back to the active theme.
-    set({
-      playlist: get().playlist.map((item) =>
-        item.themeId === id ? { ...item, themeId: undefined } : item,
-      ),
-    })
+    projectionChannel.publish(snapshot)
   },
 
   addToPlaylist(verses) {
@@ -741,11 +842,31 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ liveBackgroundOverride: item.backgroundOverride })
     }
 
+    if (item.kind === 'presentation') {
+      const slides = item.slides ?? []
+      const firstSlide = slides[0] ?? null
+      set({
+        workspaceMode: 'live',
+        presentationSubTab: 'presentations',
+        activeDeckId: item.deckId ?? get().activeDeckId,
+        liveSongSlides: slides,
+        liveSlide: firstSlide,
+        activeLiveSlideIndex: firstSlide ? 0 : -1,
+        liveVerses: [],
+        mode: 'live',
+        revision: get().revision + 1,
+        activePlaylistId: id,
+      })
+      get().publish()
+      return
+    }
+
     if (item.kind === 'song' || item.slides) {
       const slides = item.slides ?? []
       const firstSlide = slides[0] ?? null
       set({
         workspaceMode: 'live',
+        presentationSubTab: 'songs',
         activeSongId: item.songId ?? get().activeSongId,
         liveSongSlides: slides,
         liveSlide: firstSlide,

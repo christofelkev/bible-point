@@ -1,11 +1,11 @@
-import { ChevronDown, ChevronUp, ListMusic, Play, Trash2, Music, BookOpen } from 'lucide-react'
+import { ChevronDown, ChevronUp, ListMusic, Play, Trash2, Music, BookOpen, Presentation } from 'lucide-react'
 import clsx from 'clsx'
 import { useAppStore } from '../../store/useAppStore'
 import { Button } from '../ui/controls'
 
 /**
- * The service order: verses and songs queued ahead of time so the operator is not
- * searching mid-sermon. Each entry remembers the theme it was queued with.
+ * The service order: verses, songs, and presentation decks queued ahead of time
+ * so the operator is not searching mid-service. Each entry remembers its theme.
  */
 export function PlaylistPanel() {
   const playlist = useAppStore((s) => s.playlist)
@@ -23,8 +23,8 @@ export function PlaylistPanel() {
           <ListMusic size={24} className="mx-auto text-ink-600 mb-3" />
           <p className="text-xs text-ink-300">Antrian masih kosong</p>
           <p className="mt-1.5 text-[11px] text-ink-400 leading-relaxed">
-            Tambahkan ayat Alkitab atau lagu dari workspace untuk menyusun
-            rundown ibadah Minggu sebelum mulai.
+            Tambahkan ayat Alkitab, lagu, atau slide presentasi dari workspace untuk
+            menyusun rundown ibadah Minggu sebelum mulai.
           </p>
         </div>
       </div>
@@ -45,7 +45,8 @@ export function PlaylistPanel() {
       <ol className="flex-1 overflow-y-auto p-2 space-y-1">
         {playlist.map((item, index) => {
           const active = item.id === activePlaylistId
-          const isSong = item.kind === 'song' || Boolean(item.slides)
+          const isPresentation = item.kind === 'presentation'
+          const isSong = item.kind === 'song'
           const themeName = themes.find((t) => t.id === item.themeId)?.name
 
           return (
@@ -62,7 +63,11 @@ export function PlaylistPanel() {
                 <span className="w-4 shrink-0 text-[10px] tabular-nums text-ink-400">{index + 1}</span>
 
                 <div className="shrink-0">
-                  {isSong ? (
+                  {isPresentation ? (
+                    <div className="w-6 h-6 rounded bg-purple-400/15 border border-purple-400/30 flex items-center justify-center text-purple-400">
+                      <Presentation size={11} />
+                    </div>
+                  ) : isSong ? (
                     <div className="w-6 h-6 rounded bg-amber-400/15 border border-amber-400/30 flex items-center justify-center text-amber-400">
                       <Music size={11} />
                     </div>
@@ -81,14 +86,25 @@ export function PlaylistPanel() {
                     <span className={clsx('text-xs font-semibold truncate', active ? 'text-amber-300' : 'text-white')}>
                       {item.label}
                     </span>
-                    <span className={clsx('text-[8px] font-bold uppercase tracking-wider px-1 py-0.2 rounded border', isSong ? 'bg-amber-500/10 text-amber-300 border-amber-500/30' : 'bg-blue-500/10 text-blue-300 border-blue-500/30')}>
-                      {isSong ? 'Lagu' : 'Alkitab'}
+                    <span
+                      className={clsx(
+                        'text-[8px] font-bold uppercase tracking-wider px-1 py-0.2 rounded border',
+                        isPresentation
+                          ? 'bg-purple-500/10 text-purple-300 border-purple-500/30'
+                          : isSong
+                            ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                            : 'bg-blue-500/10 text-blue-300 border-blue-500/30',
+                      )}
+                    >
+                      {isPresentation ? 'Presentasi' : isSong ? 'Lagu' : 'Alkitab'}
                     </span>
                   </div>
                   <div className="text-[10px] text-ink-400 truncate mt-0.5">
-                    {isSong
+                    {isPresentation
                       ? `${item.artist ? `${item.artist} · ` : ''}${item.slides?.length ?? 0} slide`
-                      : `${item.verses?.length ?? 0} ayat${themeName ? ` · ${themeName}` : ''}`}
+                      : isSong
+                        ? `${item.artist ? `${item.artist} · ` : ''}${item.slides?.length ?? 0} slide`
+                        : `${item.verses?.length ?? 0} ayat${themeName ? ` · ${themeName}` : ''}`}
                   </div>
                 </button>
 

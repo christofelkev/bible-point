@@ -3,6 +3,7 @@ pub mod db;
 pub mod install;
 pub mod media;
 pub mod model;
+pub mod presentations;
 pub mod settings;
 pub mod songs;
 
@@ -159,6 +160,47 @@ fn save_songs(app: AppHandle, contents: String) -> Result<(), String> {
     songs::save(&songs::path(dir), &contents)
 }
 
+/// Reads persisted presentations collection. Returns null when not yet initialized.
+#[tauri::command]
+fn load_presentations(app: AppHandle) -> Result<Option<String>, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    presentations::load(&presentations::json_path(&dir))
+}
+
+#[tauri::command]
+fn save_presentations(app: AppHandle, contents: String) -> Result<(), String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    presentations::save(&presentations::json_path(&dir), &contents)
+}
+
+#[tauri::command]
+fn save_presentation_slide(
+    app: AppHandle,
+    deck_id: String,
+    slide_index: usize,
+    bytes: Vec<u8>,
+) -> Result<String, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let path = presentations::save_slide(&dir, &deck_id, slide_index, &bytes)?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn delete_presentation_deck(app: AppHandle, deck_id: String) -> Result<(), String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    presentations::delete_deck(&dir, &deck_id)
+}
+
+#[tauri::command]
+fn convert_pptx_slides(
+    app: AppHandle,
+    pptx_path: String,
+    deck_id: String,
+) -> Result<Vec<String>, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    presentations::convert_pptx(&dir, &pptx_path, &deck_id)
+}
+
 /// Copies a chosen background or font into app storage, returning its path.
 ///
 /// The frontend then renders it through the asset protocol, so the reference
@@ -222,7 +264,7 @@ async fn sideload_translation(
     let verses = install::parse_vpl(&body);
     if verses.is_empty() {
         return Err(
-            "tidak ada ayat yang terbaca. Berkas harus berformat verse-per-line,              satu baris per ayat seperti: JHN 3:16 Karena Allah..."
+            "tidak ada ayat yang terbaca. Berkas harus berformat verse-per-line, satu baris per ayat seperti: JHN 3:16 Karena Allah..."
                 .into(),
         );
     }
@@ -331,6 +373,11 @@ pub fn run() {
             save_settings,
             load_songs,
             save_songs,
+            load_presentations,
+            save_presentations,
+            save_presentation_slide,
+            delete_presentation_deck,
+            convert_pptx_slides,
             import_asset,
             prune_assets,
             sideload_translation,
