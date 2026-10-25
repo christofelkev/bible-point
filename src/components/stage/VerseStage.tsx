@@ -96,7 +96,7 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
    * paints and the operator never sees the intermediate sizes.
    */
   useLayoutEffect(() => {
-    if (theme.layout.autoFit === false || search.settled) return
+    if (theme.layout.autoFit === false || search.settled || slide?.imageUrl) return
     if (passes.current >= MAX_FIT_PASSES) {
       setSearch((s) => ({ ...s, current: s.lo, settled: true }))
       return
@@ -143,7 +143,7 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
     return <div className="absolute inset-0 bg-black" />
   }
 
-  const hasSlide = Boolean(slide && slide.lines && slide.lines.length > 0)
+  const hasSlide = Boolean(slide && ((slide.lines && slide.lines.length > 0) || slide.imageUrl))
   const hasVerses = Boolean(verses && verses.length > 0)
   const showText = mode === 'live' && (hasSlide || hasVerses)
 
@@ -263,61 +263,83 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
               alignItems: crossAlign,
               flexShrink: 0,
               maxWidth: '100%',
+              ...(slide?.imageUrl
+                ? {
+                    flex: 1,
+                    minHeight: 0,
+                    width: '100%',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }
+                : {}),
             }}
           >
-          {layout.referencePosition === 'top' && referenceBlock}
+            {layout.referencePosition === 'top' && referenceBlock}
 
-          {slide ? (
-            <div
-              style={{
-                maxWidth: `${layout.maxWidth}cqw`,
-                fontSize: `${type.size * fit}cqh`,
-                fontWeight: type.weight,
-                lineHeight: type.lineHeight,
-                letterSpacing: `${type.letterSpacing}px`,
-                textTransform: type.uppercase ? 'uppercase' : 'none',
-                textShadow,
-                textWrap: 'balance',
-                ...outline,
-              }}
-            >
-              {slide.lines.map((line, idx) => (
-                <div key={idx} className={idx > 0 ? 'mt-[0.5cqh]' : ''}>
-                  {line}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div
-              style={{
-                maxWidth: `${layout.maxWidth}cqw`,
-                fontSize: `${type.size * fit}cqh`,
-                fontWeight: type.weight,
-                lineHeight: type.lineHeight,
-                letterSpacing: `${type.letterSpacing}px`,
-                textTransform: type.uppercase ? 'uppercase' : 'none',
-                textShadow,
-                textWrap: 'balance',
-                ...outline,
-              }}
-            >
-              {verses.map((v, i) => (
-                <span key={`${v.bookId}-${v.chapter}-${v.verse}`}>
-                  {i > 0 && ' '}
-                  {verses.length > 1 && (
-                    <sup
-                      style={{ fontSize: '0.5em', opacity: 0.6, marginRight: '0.15em', fontWeight: 400 }}
-                    >
-                      {v.verse}
-                    </sup>
-                  )}
-                  {v.text}
-                </span>
-              ))}
-            </div>
-          )}
+            {slide?.imageUrl ? (
+              <div
+                className="flex items-center justify-center overflow-hidden flex-1 min-h-0 w-full"
+                style={{
+                  maxWidth: `${layout.maxWidth}cqw`,
+                }}
+              >
+                <img
+                  src={slide.imageUrl}
+                  alt={slide.badge ?? 'Slide'}
+                  className="max-w-full max-h-full object-contain select-none pointer-events-none rounded-[0.5cqh] shadow-2xl"
+                />
+              </div>
+            ) : slide ? (
+              <div
+                style={{
+                  maxWidth: `${layout.maxWidth}cqw`,
+                  fontSize: `${type.size * fit}cqh`,
+                  fontWeight: type.weight,
+                  lineHeight: type.lineHeight,
+                  letterSpacing: `${type.letterSpacing}px`,
+                  textTransform: type.uppercase ? 'uppercase' : 'none',
+                  textShadow,
+                  textWrap: 'balance',
+                  ...outline,
+                }}
+              >
+                {slide.lines.map((line, idx) => (
+                  <div key={idx} className={idx > 0 ? 'mt-[0.5cqh]' : ''}>
+                    {line}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div
+                style={{
+                  maxWidth: `${layout.maxWidth}cqw`,
+                  fontSize: `${type.size * fit}cqh`,
+                  fontWeight: type.weight,
+                  lineHeight: type.lineHeight,
+                  letterSpacing: `${type.letterSpacing}px`,
+                  textTransform: type.uppercase ? 'uppercase' : 'none',
+                  textShadow,
+                  textWrap: 'balance',
+                  ...outline,
+                }}
+              >
+                {verses.map((v, i) => (
+                  <span key={`${v.bookId}-${v.chapter}-${v.verse}`}>
+                    {i > 0 && ' '}
+                    {verses.length > 1 && (
+                      <sup
+                        style={{ fontSize: '0.5em', opacity: 0.6, marginRight: '0.15em', fontWeight: 400 }}
+                      >
+                        {v.verse}
+                      </sup>
+                    )}
+                    {v.text}
+                  </span>
+                ))}
+              </div>
+            )}
 
-          {layout.referencePosition === 'bottom' && referenceBlock}
+            {layout.referencePosition === 'bottom' && referenceBlock}
           </div>
         </div>
       )}

@@ -18,20 +18,24 @@ export type AppWorkspaceMode = 'bible' | 'live'
  */
 export type ProjectionMode = 'live' | 'clear' | 'black' | 'logo'
 
-export type SlideKind = 'bible' | 'song' | 'custom'
+export type SlideKind = 'bible' | 'song' | 'presentation' | 'custom'
 
-/** Universal presentation slide payload (used for songs, lyrics, and custom slides). */
+/** Universal presentation slide payload (used for songs, lyrics, presentations, and custom slides). */
 export interface ProjectionSlide {
   kind: SlideKind
   lines: string[]
-  /** Section label e.g. "Verse 1", "Chorus", "Bridge" */
+  /** Section label e.g. "Verse 1", "Chorus", "Bridge", "Slide 1" */
   badge?: string
-  /** Reference or metadata e.g. "Goodness of God — Bethel Music" */
+  /** Reference or metadata e.g. "Goodness of God — Bethel Music" or presentation file name */
   reference?: string
-  /** Secondary label e.g. "TB", "CCLI #123456" */
+  /** Secondary label e.g. "TB", "CCLI #123456", "PDF" */
   secondaryMeta?: string
   /** Current slide progress indicator e.g. "1 / 3" */
   slideProgress?: string
+  /** Optional URL of a rendered slide image (Tauri asset:// or web blob:) */
+  imageUrl?: string
+  /** Stable on-disk path to the slide image */
+  imagePath?: string
 }
 
 /** The complete snapshot the output window needs in order to render. */
@@ -43,4 +47,3 @@ export interface ProjectionState {
   /** Increments on every push so the stage can retrigger its transition. */
   revision: number
 }
-

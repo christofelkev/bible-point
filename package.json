@@ -17,6 +17,7 @@
     "@tauri-apps/plugin-dialog": "^2.7.2",
     "clsx": "^2.1.1",
     "lucide-react": "^1.33.0",
+    "pdfjs-dist": "^6.4.299",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "zustand": "^5.0.15"
