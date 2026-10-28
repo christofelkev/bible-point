@@ -158,7 +158,7 @@ export function LiveWorkspace() {
   return (
     <div className="flex-1 min-h-0 flex bg-ink-950 text-white">
       {/* Kolom Kiri: Library (Lagu / Presentasi Switcher) */}
-      <div className="w-72 shrink-0 border-r border-ink-800 flex flex-col bg-ink-900/60">
+      <div className="w-60 xl:w-72 shrink-0 border-r border-ink-800 flex flex-col bg-ink-900/60">
         {/* Sub-Tab Selector: [ Lagu ] [ Presentasi ] */}
         <div className="p-2 border-b border-ink-800 flex gap-1 bg-ink-950/40">
           <button
@@ -362,7 +362,7 @@ export function LiveWorkspace() {
 
               {/* Slide Grid / Matrix Lagu */}
               <div className="flex-1 overflow-y-auto p-5">
-                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
                   {activeSong.slides.map((slide, index) => {
                     const live = isSlideLive(slide, index)
                     const badgeStyle = getGroupColorClasses(slide.badge)
@@ -493,7 +493,7 @@ export function LiveWorkspace() {
 
               {/* Slide Grid / Matrix Presentasi */}
               <div className="flex-1 overflow-y-auto p-5">
-                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
                   {activeDeckSlides.map((slide, index) => {
                     const live = isSlideLive(slide, index)
 

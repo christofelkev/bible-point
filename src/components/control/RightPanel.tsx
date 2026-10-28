@@ -20,7 +20,7 @@ export function RightPanel() {
   const playlistCount = useAppStore((s) => s.playlist.length)
 
   return (
-    <aside className="w-[348px] shrink-0 flex flex-col border-l border-ink-800 bg-ink-900 overflow-hidden">
+    <aside className="w-[300px] xl:w-[348px] shrink-0 flex flex-col border-l border-ink-800 bg-ink-900 overflow-hidden">
       <LivePreview />
 
       <nav className="h-9 shrink-0 flex border-b border-ink-800 px-2 gap-1 items-center">

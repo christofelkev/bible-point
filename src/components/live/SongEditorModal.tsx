@@ -83,8 +83,8 @@ export function SongEditorModal({ song, isOpen, onClose, onSave }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-      <div className="w-full max-w-4xl max-h-[90vh] bg-ink-950 border border-ink-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-ink-100">
-        <div className="px-6 py-4 border-b border-ink-800 flex items-center justify-between bg-ink-900/80">
+      <div className="w-full max-w-4xl max-h-[85vh] bg-ink-950 border border-ink-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-ink-100">
+        <div className="px-6 py-4 border-b border-ink-800 flex items-center justify-between bg-ink-900/80 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-amber-400/20 border border-amber-400/30 flex items-center justify-center text-amber-400">
               <Music size={16} />
@@ -102,8 +102,8 @@ export function SongEditorModal({ song, isOpen, onClose, onSave }: Props) {
         </div>
 
         <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
-          <div className="w-full md:w-1/2 p-5 border-b md:border-b-0 md:border-r border-ink-800 overflow-y-auto space-y-4">
-            <div>
+          <div className="w-full md:w-1/2 p-5 border-b md:border-b-0 md:border-r border-ink-800 overflow-y-auto space-y-4 flex flex-col">
+            <div className="shrink-0">
               <label className="block text-xs font-semibold text-ink-300 mb-1.5">
                 Judul Lagu
               </label>
@@ -116,16 +116,15 @@ export function SongEditorModal({ song, isOpen, onClose, onSave }: Props) {
               />
             </div>
 
-            <div className="flex-1 flex flex-col">
-              <label className="block text-xs font-semibold text-ink-300 mb-1.5">
+            <div className="flex-1 min-h-[140px] flex flex-col">
+              <label className="block text-xs font-semibold text-ink-300 mb-1.5 shrink-0">
                 Teks Lirik
               </label>
               <textarea
-                rows={16}
                 value={rawLyrics}
                 onChange={(e) => setRawLyrics(e.target.value)}
                 placeholder="Tempel atau ketik lirik di sini..."
-                className="w-full p-3 rounded-lg bg-ink-900 border border-ink-800 text-xs text-white placeholder:text-ink-600 focus:outline-none focus:border-amber-400/70 font-mono leading-relaxed"
+                className="w-full flex-1 min-h-[140px] p-3 rounded-lg bg-ink-900 border border-ink-800 text-xs text-white placeholder:text-ink-600 focus:outline-none focus:border-amber-400/70 font-mono leading-relaxed resize-none"
               />
             </div>
           </div>
@@ -193,7 +192,7 @@ export function SongEditorModal({ song, isOpen, onClose, onSave }: Props) {
           </div>
         </div>
 
-        <div className="px-6 py-3.5 border-t border-ink-800 flex items-center justify-end gap-2 bg-ink-900/80">
+        <div className="px-6 py-3.5 border-t border-ink-800 flex items-center justify-end gap-2 bg-ink-900/80 shrink-0">
           <button
             onClick={onClose}
             className="px-4 h-8 rounded-lg bg-ink-800 hover:bg-ink-700 text-xs font-medium text-ink-300 transition-colors cursor-pointer"

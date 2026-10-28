@@ -101,7 +101,7 @@ export function TopBar() {
               value={activeTranslationId}
               onChange={(id) => setTranslation(id)}
               options={installed.map((t) => ({ value: t.id, label: `${t.abbrev} — ${t.name}` }))}
-              className="h-8 max-w-[210px]"
+              className="h-8 max-w-[210px] min-w-[140px] shrink"
             />
           ) : (
             <span className="text-[11px] text-ink-400 px-1">Belum ada terjemahan</span>
@@ -109,7 +109,7 @@ export function TopBar() {
 
           <div
             className={clsx(
-              'relative flex-1 max-w-[520px] h-8 flex items-center rounded-lg border bg-ink-950 transition-colors',
+              'relative flex-1 min-w-[160px] max-w-[520px] h-8 flex items-center rounded-lg border bg-ink-950 transition-colors',
               flash === 'miss' ? 'border-red-500/60' : 'border-ink-800 focus-within:border-ink-600',
             )}
           >
@@ -131,7 +131,7 @@ export function TopBar() {
         </>
       ) : null}
 
-      <div className="flex-1" />
+      <div className="flex-1 min-w-0" />
 
       <div className="flex items-center gap-2">
         <button
