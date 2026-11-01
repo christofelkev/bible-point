@@ -1,6 +1,6 @@
 [package]
 name = "bible-point"
-version = "0.2.2"
+version = "0.2.3"
 description = "Project Bible verses to a second screen"
 authors = []
 license = ""
@@ -34,3 +34,4 @@ tauri-plugin-dialog = "2.7.2"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread"] }
+

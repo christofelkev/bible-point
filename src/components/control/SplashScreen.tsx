@@ -53,7 +53,7 @@ export function SplashScreen({ isReady }: Props) {
 
         {/* Versi */}
         <span className="text-[11px] font-mono text-ink-500">
-          v0.2.2
+          v0.2.3
         </span>
       </div>
     </div>
