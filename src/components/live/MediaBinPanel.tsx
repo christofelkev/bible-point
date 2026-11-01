@@ -198,6 +198,8 @@ export function MediaBinPanel() {
                   <div className="w-full h-full bg-black relative flex items-center justify-center">
                     <video
                       src={bg.src}
+                      autoPlay
+                      playsInline
                       muted
                       loop
                       className="w-full h-full object-cover pointer-events-none opacity-80"

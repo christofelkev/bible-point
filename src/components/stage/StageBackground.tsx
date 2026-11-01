@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import type { Background, Overlay } from '../../types/theme'
 
 /**
@@ -37,13 +38,40 @@ interface Props {
  * slightly beyond the stage so the blur does not reveal transparent edges.
  */
 export function StageBackground({ background, overlay }: Props) {
+  const videoRef = useRef<HTMLVideoElement>(null)
   const inset = overlay.blur > 0 ? `-${overlay.blur * 2}px` : 0
   const filter = overlay.blur > 0 ? `blur(${overlay.blur}px)` : undefined
 
+  const isVideo = background.kind === 'video'
+  const isPaused = isVideo ? background.paused : undefined
+  const seekTime = isVideo ? background.seekTime : undefined
+  const isLoop = isVideo ? (background.loop ?? true) : true
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !isVideo) return
+
+    if (isPaused) {
+      video.pause()
+    } else {
+      void video.play().catch(() => {})
+    }
+  }, [isVideo, isPaused])
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !isVideo) return
+
+    if (typeof seekTime === 'number' && Math.abs(video.currentTime - seekTime) > 0.4) {
+      video.currentTime = seekTime
+    }
+  }, [isVideo, seekTime])
+
   return (
     <>
-      {background.kind === 'video' ? (
+      {isVideo ? (
         <video
+          ref={videoRef}
           key={background.src}
           className="absolute pointer-events-none"
           style={{
@@ -54,10 +82,8 @@ export function StageBackground({ background, overlay }: Props) {
             filter,
           }}
           src={background.src}
-          // A backdrop must never demand attention or stop partway through a
-          // service. Muted is also what lets autoplay work without a gesture.
           autoPlay
-          loop
+          loop={isLoop}
           muted
           playsInline
         />

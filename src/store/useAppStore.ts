@@ -177,6 +177,7 @@ interface AppState {
   patchTransition: (patch: Partial<Transition>) => void
   setBackground: (background: Background) => void
   setLiveBackgroundOverride: (background: Background | null) => void
+  setVideoPlayback: (patch: { paused?: boolean; loop?: boolean; seekTime?: number }) => void
   addMediaAsset: (background: Background) => void
   removeMediaAsset: (index: number) => void
   saveThemeAsPreset: (name: string) => void
@@ -763,6 +764,26 @@ export const useAppStore = create<AppState>((set, get) => ({
   setLiveBackgroundOverride(background) {
     set({ liveBackgroundOverride: background })
     get().publish()
+  },
+
+  setVideoPlayback(patch) {
+    const override = get().liveBackgroundOverride
+    if (override && override.kind === 'video') {
+      set({ liveBackgroundOverride: { ...override, ...patch } })
+      get().publish()
+      return
+    }
+
+    const currentBg = get().theme.background
+    if (currentBg.kind === 'video') {
+      set((s) => ({
+        theme: {
+          ...s.theme,
+          background: { ...currentBg, ...patch },
+        },
+      }))
+      get().publish()
+    }
   },
 
   addMediaAsset(background) {

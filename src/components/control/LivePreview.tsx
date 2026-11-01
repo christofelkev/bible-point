@@ -1,8 +1,20 @@
-import { SkipBack, SkipForward, Square, EyeOff, Image as ImageIcon } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import {
+  SkipBack,
+  SkipForward,
+  Square,
+  EyeOff,
+  Image as ImageIcon,
+  Play,
+  Pause,
+  Repeat,
+  RotateCcw,
+} from 'lucide-react'
 import clsx from 'clsx'
 import { useAppStore } from '../../store/useAppStore'
 import { VerseStage } from '../stage/VerseStage'
 import type { ProjectionMode } from '../../types/projection'
+import type { VideoBackground } from '../../types/theme'
 
 /**
  * The operator's confidence monitor.
@@ -22,9 +34,12 @@ export function LivePreview() {
   const setMode = useAppStore((s) => s.setMode)
   const stepLive = useAppStore((s) => s.stepLive)
 
+  const previewContainerRef = useRef<HTMLDivElement>(null)
+
   const toggle = (target: ProjectionMode) => setMode(mode === target ? 'live' : target)
   const hasContent = liveVerses.length > 0 || liveSlide != null
   const effectiveTheme = liveBackgroundOverride ? { ...theme, background: liveBackgroundOverride } : theme
+  const isVideoBackground = effectiveTheme.background.kind === 'video'
 
   return (
     <div className="shrink-0 border-b border-ink-800">
@@ -44,12 +59,23 @@ export function LivePreview() {
       </div>
 
       <div className="px-3 pb-3">
-        <div className="relative w-full aspect-video rounded-lg overflow-hidden border border-ink-700 bg-black">
+        <div
+          ref={previewContainerRef}
+          className="relative w-full aspect-video rounded-lg overflow-hidden border border-ink-700 bg-black"
+        >
           <VerseStage
             state={{ mode, verses: liveVerses, slide: liveSlide, theme: effectiveTheme, revision }}
             showSafeArea
           />
         </div>
+
+        {/* Video Player Controls (Active when background is a video) */}
+        {isVideoBackground && (
+          <VideoTransportBar
+            videoBg={effectiveTheme.background as VideoBackground}
+            previewContainerRef={previewContainerRef}
+          />
+        )}
 
         <div className="mt-2 grid grid-cols-4 gap-1.5">
           <TransportButton
@@ -88,6 +114,162 @@ export function LivePreview() {
           )}
         >
           <ImageIcon size={12} /> Layar Idle
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function VideoTransportBar({
+  videoBg,
+  previewContainerRef,
+}: {
+  videoBg: VideoBackground
+  previewContainerRef: React.RefObject<HTMLDivElement | null>
+}) {
+  const setVideoPlayback = useAppStore((s) => s.setVideoPlayback)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [isScrubbing, setIsScrubbing] = useState(false)
+  const [scrubValue, setScrubValue] = useState(0)
+
+  // Attach event listeners to the <video> element rendered inside the preview box
+  useEffect(() => {
+    const container = previewContainerRef.current
+    if (!container) return
+
+    const video = container.querySelector('video')
+    if (!video) return
+
+    const handleTimeUpdate = () => {
+      if (!isScrubbing) {
+        setCurrentTime(video.currentTime)
+      }
+      if (video.duration && !isNaN(video.duration) && duration !== video.duration) {
+        setDuration(video.duration)
+      }
+    }
+
+    const handleLoadedMetadata = () => {
+      if (video.duration && !isNaN(video.duration)) {
+        setDuration(video.duration)
+      }
+    }
+
+    video.addEventListener('timeupdate', handleTimeUpdate)
+    video.addEventListener('loadedmetadata', handleLoadedMetadata)
+
+    if (video.duration && !isNaN(video.duration)) {
+      setDuration(video.duration)
+    }
+
+    return () => {
+      video.removeEventListener('timeupdate', handleTimeUpdate)
+      video.removeEventListener('loadedmetadata', handleLoadedMetadata)
+    }
+  }, [previewContainerRef, isScrubbing, duration, videoBg.src])
+
+  const formatTime = (seconds: number) => {
+    if (!seconds || isNaN(seconds)) return '00:00'
+    const m = Math.floor(seconds / 60)
+    const s = Math.floor(seconds % 60)
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+  }
+
+  const isPaused = videoBg.paused ?? false
+  const isLoop = videoBg.loop ?? true
+
+  const togglePlay = () => {
+    setVideoPlayback({ paused: !isPaused })
+  }
+
+  const toggleLoop = () => {
+    setVideoPlayback({ loop: !isLoop })
+  }
+
+  const handleRestart = () => {
+    setVideoPlayback({ seekTime: 0, paused: false })
+  }
+
+  const handleScrubChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = Number(e.target.value)
+    setScrubValue(val)
+  }
+
+  const handleScrubStart = () => {
+    setIsScrubbing(true)
+    setScrubValue(currentTime)
+  }
+
+  const handleScrubEnd = () => {
+    setIsScrubbing(false)
+    setCurrentTime(scrubValue)
+    setVideoPlayback({ seekTime: scrubValue })
+  }
+
+  const displayTime = isScrubbing ? scrubValue : currentTime
+
+  return (
+    <div className="mt-2 p-2 rounded-lg bg-ink-950 border border-ink-800 space-y-2 animate-in fade-in duration-200">
+      {/* Timeline Slider & Time indicator */}
+      <div className="space-y-1">
+        <div className="flex items-center justify-between text-[10px] tabular-nums font-mono text-ink-400">
+          <span className="text-amber-400 font-semibold">{formatTime(displayTime)}</span>
+          <span>{formatTime(duration)}</span>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={duration || 100}
+          step={0.1}
+          value={displayTime}
+          onMouseDown={handleScrubStart}
+          onTouchStart={handleScrubStart}
+          onChange={handleScrubChange}
+          onMouseUp={handleScrubEnd}
+          onTouchEnd={handleScrubEnd}
+          className="w-full h-1 bg-ink-800 rounded-lg appearance-none cursor-pointer accent-amber-400 focus:outline-none"
+        />
+      </div>
+
+      {/* Control buttons */}
+      <div className="flex items-center justify-between gap-1 pt-0.5">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={togglePlay}
+            title={isPaused ? 'Putar Video' : 'Jeda Video'}
+            className={clsx(
+              'h-6 px-2 rounded flex items-center gap-1 text-[10px] font-bold transition-colors cursor-pointer',
+              isPaused
+                ? 'bg-amber-400 text-ink-950 hover:bg-amber-300'
+                : 'bg-ink-800 text-ink-200 hover:text-white hover:bg-ink-700 border border-ink-700',
+            )}
+          >
+            {isPaused ? <Play size={10} className="fill-current" /> : <Pause size={10} className="fill-current" />}
+            <span>{isPaused ? 'Play' : 'Pause'}</span>
+          </button>
+
+          <button
+            onClick={handleRestart}
+            title="Ulangi dari Awal"
+            className="h-6 w-6 rounded bg-ink-800 hover:bg-ink-700 text-ink-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer border border-ink-700"
+          >
+            <RotateCcw size={10} />
+          </button>
+        </div>
+
+        <button
+          onClick={toggleLoop}
+          title={isLoop ? 'Ulangi Otomatis: Aktif' : 'Ulangi Otomatis: Mati'}
+          className={clsx(
+            'h-6 px-2 rounded flex items-center gap-1 text-[10px] font-medium transition-colors cursor-pointer border',
+            isLoop
+              ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+              : 'bg-ink-900 border-ink-800 text-ink-400 hover:text-ink-200',
+          )}
+        >
+          <Repeat size={10} />
+          <span>Loop</span>
         </button>
       </div>
     </div>

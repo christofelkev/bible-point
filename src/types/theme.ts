@@ -55,6 +55,9 @@ export interface VideoBackground {
   fit: 'cover' | 'contain'
   label?: string
   path?: string
+  loop?: boolean
+  paused?: boolean
+  seekTime?: number
 }
 
 export type Background =
@@ -147,3 +150,4 @@ export interface Theme {
   layout: StageLayout
   transition: Transition
 }
+
