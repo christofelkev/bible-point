@@ -7,11 +7,14 @@ import { VerseList } from '../components/control/VerseList'
 import { RightPanel } from '../components/control/RightPanel'
 import { LiveWorkspace } from '../components/live/LiveWorkspace'
 import { SplashScreen } from '../components/control/SplashScreen'
+import { ResizeHandle } from '../components/ui/ResizeHandle'
 
 /** The operator's window: browse, select, style, project. */
 export function ControlWindow() {
   const init = useAppStore((s) => s.init)
   const workspaceMode = useAppStore((s) => s.workspaceMode)
+  const adjustPanelSize = useAppStore((s) => s.adjustPanelSize)
+  const resetPanelSize = useAppStore((s) => s.resetPanelSize)
   const [isReady, setIsReady] = useState(false)
 
   // Autosave starts only once hydration has finished; starting it earlier
@@ -45,11 +48,23 @@ export function ControlWindow() {
         {workspaceMode === 'bible' ? (
           <>
             <BibleNavigator />
+            <ResizeHandle
+              direction="col"
+              onDrag={(delta) => adjustPanelSize('left', delta)}
+              onDoubleClick={() => resetPanelSize('left')}
+              title="Tarik untuk mengubah lebar navigasi Alkitab (klik ganda untuk reset)"
+            />
             <VerseList />
           </>
         ) : (
           <LiveWorkspace />
         )}
+        <ResizeHandle
+          direction="col"
+          onDrag={(delta) => adjustPanelSize('right', -delta)}
+          onDoubleClick={() => resetPanelSize('right')}
+          title="Tarik untuk mengubah lebar panel kontrol (klik ganda untuk reset)"
+        />
         <RightPanel />
       </div>
     </div>

@@ -21,6 +21,24 @@ import { DEFAULT_SECTION_HOTKEYS } from '../data/songHotkeys'
 
 export type PlaylistItemKind = 'bible' | 'song' | 'presentation'
 
+export interface PanelSizes {
+  left: number
+  right: number
+  bottom: number
+}
+
+export const DEFAULT_PANEL_SIZES: PanelSizes = {
+  left: 280,
+  right: 320,
+  bottom: 160,
+}
+
+export const PANEL_CONSTRAINTS = {
+  left: { min: 180, max: 480 },
+  right: { min: 260, max: 540 },
+  bottom: { min: 42, max: 360 },
+}
+
 /** One entry in the unified service order (Scripture, Song, or Presentation). */
 export interface PlaylistItem {
   id: string
@@ -106,6 +124,7 @@ interface AppState {
 
   // --- UI ------------------------------------------------------------------
   panelTab: PanelTab
+  panelSizes: PanelSizes
 
   // --- Actions -------------------------------------------------------------
   init: () => Promise<void>
@@ -171,6 +190,9 @@ interface AppState {
   clearPlaylist: () => void
 
   setPanelTab: (tab: PanelTab) => void
+  setPanelSize: (panel: 'left' | 'right' | 'bottom', size: number) => void
+  adjustPanelSize: (panel: 'left' | 'right' | 'bottom', delta: number) => void
+  resetPanelSize: (panel: 'left' | 'right' | 'bottom') => void
   refreshTranslations: () => Promise<void>
   installTranslation: (id: string) => Promise<void>
   uninstallTranslation: (id: string) => Promise<void>
@@ -233,6 +255,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   activePlaylistId: null,
 
   panelTab: 'design',
+  panelSizes: { ...DEFAULT_PANEL_SIZES },
 
   async init() {
     bibleSource.onInstallProgress((progress) => {
@@ -267,6 +290,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         workspaceMode: saved.workspaceMode ?? 'bible',
         mediaLibrary,
         sectionHotkeys: saved.sectionHotkeys ?? DEFAULT_SECTION_HOTKEYS,
+        panelSizes: {
+          ...DEFAULT_PANEL_SIZES,
+          ...(saved.panelSizes ?? {}),
+        },
       })
 
       // Playlist ids must not collide with ids minted later this session.
@@ -907,6 +934,23 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setPanelTab(tab) {
     set({ panelTab: tab })
+  },
+
+  setPanelSize(panel, size) {
+    const { min, max } = PANEL_CONSTRAINTS[panel]
+    const clamped = Math.max(min, Math.min(max, size))
+    set((s) => ({ panelSizes: { ...s.panelSizes, [panel]: clamped } }))
+  },
+
+  adjustPanelSize(panel, delta) {
+    const current = get().panelSizes[panel]
+    const { min, max } = PANEL_CONSTRAINTS[panel]
+    const clamped = Math.max(min, Math.min(max, current + delta))
+    set((s) => ({ panelSizes: { ...s.panelSizes, [panel]: clamped } }))
+  },
+
+  resetPanelSize(panel) {
+    set((s) => ({ panelSizes: { ...s.panelSizes, [panel]: DEFAULT_PANEL_SIZES[panel] } }))
   },
 
   async refreshTranslations() {

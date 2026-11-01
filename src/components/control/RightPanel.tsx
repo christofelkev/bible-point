@@ -18,9 +18,13 @@ export function RightPanel() {
   const panelTab = useAppStore((s) => s.panelTab)
   const setPanelTab = useAppStore((s) => s.setPanelTab)
   const playlistCount = useAppStore((s) => s.playlist.length)
+  const rightWidth = useAppStore((s) => s.panelSizes.right)
 
   return (
-    <aside className="w-[300px] xl:w-[348px] shrink-0 flex flex-col border-l border-ink-800 bg-ink-900 overflow-hidden">
+    <aside
+      style={{ width: rightWidth }}
+      className="shrink-0 flex flex-col border-l border-ink-800 bg-ink-900 overflow-hidden"
+    >
       <LivePreview />
 
       <nav className="h-9 shrink-0 flex border-b border-ink-800 px-2 gap-1 items-center">

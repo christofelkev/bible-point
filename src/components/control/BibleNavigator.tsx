@@ -13,6 +13,7 @@ export function BibleNavigator() {
   const activeBookId = useAppStore((s) => s.activeBookId)
   const activeChapter = useAppStore((s) => s.activeChapter)
   const openChapter = useAppStore((s) => s.openChapter)
+  const leftWidth = useAppStore((s) => s.panelSizes.left)
 
   const activeBook = books.find((b) => b.id === activeBookId)
   const bookRef = useRef<HTMLButtonElement>(null)
@@ -37,7 +38,10 @@ export function BibleNavigator() {
 
   if (!hasBooks) {
     return (
-      <aside className="w-[268px] shrink-0 border-r border-ink-800 bg-ink-900 grid place-items-center px-6">
+      <aside
+        style={{ width: leftWidth }}
+        className="shrink-0 border-r border-ink-800 bg-ink-900 grid place-items-center px-6"
+      >
         <p className="text-[11px] leading-relaxed text-ink-400 text-center">
           Daftar kitab muncul setelah ada terjemahan terpasang.
         </p>
@@ -46,7 +50,10 @@ export function BibleNavigator() {
   }
 
   return (
-    <aside className="w-[268px] shrink-0 flex border-r border-ink-800 bg-ink-900 overflow-hidden">
+    <aside
+      style={{ width: leftWidth }}
+      className="shrink-0 flex border-r border-ink-800 bg-ink-900 overflow-hidden"
+    >
       <div className="w-[168px] shrink-0 overflow-y-auto border-r border-ink-800">
         {(['OT', 'NT'] as const).map((testament) => (
           <div key={testament}>

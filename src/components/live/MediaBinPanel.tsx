@@ -20,6 +20,7 @@ export function MediaBinPanel() {
   const setLiveBackgroundOverride = useAppStore((s) => s.setLiveBackgroundOverride)
   const addMediaAsset = useAppStore((s) => s.addMediaAsset)
   const removeMediaAsset = useAppStore((s) => s.removeMediaAsset)
+  const bottomHeight = useAppStore((s) => s.panelSizes.bottom)
 
   const [filter, setFilter] = useState<'all' | 'image' | 'video' | 'gradient'>('all')
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -79,7 +80,10 @@ export function MediaBinPanel() {
   }
 
   return (
-    <div className="border-t border-ink-800 bg-ink-900/90 flex flex-col shrink-0">
+    <div
+      style={{ height: bottomHeight }}
+      className="bg-ink-900/90 flex flex-col shrink-0 overflow-hidden"
+    >
       {/* Top Bar Media Bin */}
       <div className="px-4 py-2 border-b border-ink-800/80 flex items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2">
@@ -172,66 +176,68 @@ export function MediaBinPanel() {
       )}
 
       {/* Horizontal Scroll Thumbnail List */}
-      <div className="p-3 overflow-x-auto flex items-center gap-3 min-h-[96px]">
-        {filtered.map(({ bg, isUser, userIndex }, idx) => {
-          const active = isCurrentActive(bg)
-          const isVideo = bg.kind === 'video'
+      {bottomHeight >= 60 && (
+        <div className="flex-1 p-3 overflow-x-auto flex items-center gap-3 min-h-0">
+          {filtered.map(({ bg, isUser, userIndex }, idx) => {
+            const active = isCurrentActive(bg)
+            const isVideo = bg.kind === 'video'
 
-          return (
-            <div
-              key={`${bg.kind}-${idx}`}
-              onClick={() => setLiveBackgroundOverride(bg)}
-              className={clsx(
-                'relative w-28 h-16 rounded-lg overflow-hidden border shrink-0 transition-all cursor-pointer group shadow-sm select-none',
-                active
-                  ? 'border-amber-400 ring-2 ring-amber-400/50 scale-[1.03]'
-                  : 'border-ink-800 hover:border-ink-600 hover:scale-[1.01]',
-              )}
-            >
-              {/* Background Thumbnail Canvas */}
-              {isVideo ? (
-                <div className="w-full h-full bg-black relative flex items-center justify-center">
-                  <video
-                    src={bg.src}
-                    muted
-                    loop
-                    className="w-full h-full object-cover pointer-events-none opacity-80"
+            return (
+              <div
+                key={`${bg.kind}-${idx}`}
+                onClick={() => setLiveBackgroundOverride(bg)}
+                className={clsx(
+                  'relative w-28 h-16 rounded-lg overflow-hidden border shrink-0 transition-all cursor-pointer group shadow-sm select-none',
+                  active
+                    ? 'border-amber-400 ring-2 ring-amber-400/50 scale-[1.03]'
+                    : 'border-ink-800 hover:border-ink-600 hover:scale-[1.01]',
+                )}
+              >
+                {/* Background Thumbnail Canvas */}
+                {isVideo ? (
+                  <div className="w-full h-full bg-black relative flex items-center justify-center">
+                    <video
+                      src={bg.src}
+                      muted
+                      loop
+                      className="w-full h-full object-cover pointer-events-none opacity-80"
+                    />
+                    <div className="absolute inset-0 bg-black/20" />
+                    <Film size={16} className="absolute text-white/90 drop-shadow" />
+                  </div>
+                ) : (
+                  <div
+                    className="w-full h-full"
+                    style={{ background: backgroundCss(bg) }}
                   />
-                  <div className="absolute inset-0 bg-black/20" />
-                  <Film size={16} className="absolute text-white/90 drop-shadow" />
-                </div>
-              ) : (
-                <div
-                  className="w-full h-full"
-                  style={{ background: backgroundCss(bg) }}
-                />
-              )}
+                )}
 
-              {/* Active Indicator Overlay */}
-              {active && (
-                <div className="absolute top-1 right-1 bg-amber-400 text-ink-950 text-[7px] font-bold px-1.5 py-0.2 rounded shadow">
-                  LIVE
-                </div>
-              )}
+                {/* Active Indicator Overlay */}
+                {active && (
+                  <div className="absolute top-1 right-1 bg-amber-400 text-ink-950 text-[7px] font-bold px-1.5 py-0.2 rounded shadow">
+                    LIVE
+                  </div>
+                )}
 
-              {/* Delete button for user-uploaded assets */}
-              {isUser && userIndex !== undefined && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    removeMediaAsset(userIndex)
-                    if (active) setLiveBackgroundOverride(null)
-                  }}
-                  title="Hapus dari pustaka media"
-                  className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity bg-red-950/80 hover:bg-red-800 text-red-200 p-0.5 rounded"
-                >
-                  <Trash2 size={10} />
-                </button>
-              )}
-            </div>
-          )
-        })}
-      </div>
+                {/* Delete button for user-uploaded assets */}
+                {isUser && userIndex !== undefined && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      removeMediaAsset(userIndex)
+                      if (active) setLiveBackgroundOverride(null)
+                    }}
+                    title="Hapus dari pustaka media"
+                    className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity bg-red-950/80 hover:bg-red-800 text-red-200 p-0.5 rounded"
+                  >
+                    <Trash2 size={10} />
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

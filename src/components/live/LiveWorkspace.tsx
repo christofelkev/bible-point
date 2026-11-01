@@ -19,6 +19,7 @@ import { SongEditorModal } from './SongEditorModal'
 import { MediaBinPanel } from './MediaBinPanel'
 import { ImportPresentationModal } from './ImportPresentationModal'
 import { SectionContextMenu } from './SectionContextMenu'
+import { ResizeHandle } from '../ui/ResizeHandle'
 import { getGroupColorClasses } from '../../data/songHotkeys'
 import { applySectionTag, removeSectionStart, serializeSlidesToRawLyrics } from '../../services/songs/lyricParser'
 
@@ -42,6 +43,11 @@ export function LiveWorkspace() {
   const saveDeck = useAppStore((s) => s.saveDeck)
   const deleteDeck = useAppStore((s) => s.deleteDeck)
   const addDeckToPlaylist = useAppStore((s) => s.addDeckToPlaylist)
+
+  // Panel resizing store
+  const leftWidth = useAppStore((s) => s.panelSizes.left)
+  const adjustPanelSize = useAppStore((s) => s.adjustPanelSize)
+  const resetPanelSize = useAppStore((s) => s.resetPanelSize)
 
   // Modals & local state
   const [songSearch, setSongSearch] = useState('')
@@ -158,7 +164,10 @@ export function LiveWorkspace() {
   return (
     <div className="flex-1 min-h-0 flex bg-ink-950 text-white">
       {/* Kolom Kiri: Library (Lagu / Presentasi Switcher) */}
-      <div className="w-60 xl:w-72 shrink-0 border-r border-ink-800 flex flex-col bg-ink-900/60">
+      <div
+        style={{ width: leftWidth }}
+        className="shrink-0 flex flex-col bg-ink-900/60 overflow-hidden"
+      >
         {/* Sub-Tab Selector: [ Lagu ] [ Presentasi ] */}
         <div className="p-2 border-b border-ink-800 flex gap-1 bg-ink-950/40">
           <button
@@ -289,6 +298,13 @@ export function LiveWorkspace() {
           </>
         )}
       </div>
+
+      <ResizeHandle
+        direction="col"
+        onDrag={(delta) => adjustPanelSize('left', delta)}
+        onDoubleClick={() => resetPanelSize('left')}
+        title="Tarik untuk mengubah lebar perpustakaan (klik ganda untuk reset)"
+      />
 
       {/* Kolom Tengah: Slide Matrix / Grid Viewer */}
       <div className="flex-1 flex flex-col min-w-0 bg-ink-950">
@@ -429,6 +445,12 @@ export function LiveWorkspace() {
               </div>
 
               {/* Media Bin: Panel Ganti Latar Belakang Live */}
+              <ResizeHandle
+                direction="row"
+                onDrag={(delta) => adjustPanelSize('bottom', -delta)}
+                onDoubleClick={() => resetPanelSize('bottom')}
+                title="Tarik untuk mengubah tinggi Media Bin (klik ganda untuk reset)"
+              />
               <MediaBinPanel />
             </>
           )
@@ -543,6 +565,12 @@ export function LiveWorkspace() {
               </div>
 
               {/* Media Bin: Panel Ganti Latar Belakang Live */}
+              <ResizeHandle
+                direction="row"
+                onDrag={(delta) => adjustPanelSize('bottom', -delta)}
+                onDoubleClick={() => resetPanelSize('bottom')}
+                title="Tarik untuk mengubah tinggi Media Bin (klik ganda untuk reset)"
+              />
               <MediaBinPanel />
             </>
           )

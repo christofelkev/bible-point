@@ -32,6 +32,11 @@ export interface PersistedSettings {
   workspaceMode?: 'bible' | 'live'
   mediaLibrary?: Background[]
   sectionHotkeys?: Record<string, string>
+  panelSizes?: {
+    left?: number
+    right?: number
+    bottom?: number
+  }
 }
 
 export interface SettingsStore {
