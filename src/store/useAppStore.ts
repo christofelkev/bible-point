@@ -12,8 +12,8 @@ import { settingsStore } from '../services/settings'
 import { rehydrateTheme, pruneUnusedAssets, rehydrateBackground } from '../services/media'
 import { exportPresets, importPresets } from '../services/presets'
 import { formatRange } from '../types/bible'
-import type { Song } from '../types/song'
-import { songStore } from '../services/songs'
+import type { Song, SongFolder, SongPlaylist } from '../types/song'
+import { songStore, libraryTreeStore } from '../services/songs'
 import { DEFAULT_SONGS } from '../data/defaultSongs'
 import type { PresentationDeck } from '../types/presentation'
 import { presentationStore } from '../services/presentation'
@@ -95,6 +95,10 @@ interface AppState {
   songs: Song[]
   activeSongId: string | null
   sectionHotkeys: Record<string, string>
+  songFolders: SongFolder[]
+  songPlaylists: SongPlaylist[]
+  selectedLibraryPlaylistId: string | null
+  expandedFolderIds: string[]
 
   // --- Presentations (Live Mode) -------------------------------------------
   presentations: PresentationDeck[]
@@ -136,6 +140,19 @@ interface AppState {
   deleteSong: (id: string) => Promise<void>
   setActiveSongId: (id: string | null) => void
   setSectionHotkeys: (hotkeys: Record<string, string>) => void
+
+  loadLibraryTree: () => Promise<void>
+  createSongFolder: (name: string) => Promise<string>
+  renameSongFolder: (id: string, name: string) => Promise<void>
+  deleteSongFolder: (id: string) => Promise<void>
+  createSongPlaylist: (name: string, folderId?: string | null) => Promise<string>
+  renameSongPlaylist: (id: string, name: string) => Promise<void>
+  deleteSongPlaylist: (id: string) => Promise<void>
+  addSongsToSongPlaylist: (playlistId: string, songIds: string[]) => Promise<void>
+  removeSongFromSongPlaylist: (playlistId: string, songId: string) => Promise<void>
+  reorderSongsInSongPlaylist: (playlistId: string, songIds: string[]) => Promise<void>
+  setSelectedLibraryPlaylistId: (id: string | null) => void
+  toggleFolderExpanded: (folderId: string) => void
 
   loadPresentations: () => Promise<void>
   saveDeck: (deck: PresentationDeck) => Promise<void>
@@ -232,6 +249,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   songs: [],
   activeSongId: null,
   sectionHotkeys: DEFAULT_SECTION_HOTKEYS,
+  songFolders: [],
+  songPlaylists: [],
+  selectedLibraryPlaylistId: null,
+  expandedFolderIds: [],
   presentations: [],
   activeDeckId: null,
 
@@ -340,6 +361,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       songs,
       activeSongId: songs[0]?.id ?? null,
     })
+
+    // Restore folders and playlists tree
+    await get().loadLibraryTree()
 
     // Restore presentations from persistent storage
     const loadedDecks = await presentationStore.load()
@@ -468,14 +492,32 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     set({ songs: nextSongs, activeSongId: song.id, presentationSubTab: 'songs' })
     await songStore.save(nextSongs)
+
+    if (idx < 0 && get().selectedLibraryPlaylistId) {
+      void get().addSongsToSongPlaylist(get().selectedLibraryPlaylistId!, [song.id])
+    }
   },
 
   async deleteSong(id) {
-    const { songs, activeSongId } = get()
+    const { songs, activeSongId, songFolders, songPlaylists } = get()
     const nextSongs = songs.filter((s) => s.id !== id)
     const nextActive = activeSongId === id ? (nextSongs[0]?.id ?? null) : activeSongId
-    set({ songs: nextSongs, activeSongId: nextActive })
+
+    // Clean up from playlists if referenced
+    let playlistsChanged = false
+    const nextPlaylists = songPlaylists.map((p) => {
+      if (p.songIds.includes(id)) {
+        playlistsChanged = true
+        return { ...p, songIds: p.songIds.filter((sId) => sId !== id) }
+      }
+      return p
+    })
+
+    set({ songs: nextSongs, activeSongId: nextActive, songPlaylists: nextPlaylists })
     await songStore.save(nextSongs)
+    if (playlistsChanged) {
+      await libraryTreeStore.save({ folders: songFolders, playlists: nextPlaylists })
+    }
   },
 
   setActiveSongId(id) {
@@ -484,6 +526,176 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setSectionHotkeys(hotkeys) {
     set({ sectionHotkeys: hotkeys })
+  },
+
+  async loadLibraryTree() {
+    const tree = await libraryTreeStore.load()
+    if (tree) {
+      const folderIds = tree.folders.map((f) => f.id)
+      set({
+        songFolders: tree.folders,
+        songPlaylists: tree.playlists,
+        expandedFolderIds: folderIds,
+      })
+    }
+  },
+
+  async createSongFolder(name: string) {
+    const trimmed = name.trim()
+    if (!trimmed) return ''
+    const id = `folder_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+    const newFolder: SongFolder = {
+      id,
+      name: trimmed,
+      createdAt: new Date().toISOString(),
+    }
+    const { songFolders, songPlaylists, expandedFolderIds } = get()
+    const nextFolders = [...songFolders, newFolder]
+    const nextExpanded = expandedFolderIds.includes(id) ? expandedFolderIds : [...expandedFolderIds, id]
+    set({ songFolders: nextFolders, expandedFolderIds: nextExpanded })
+    await libraryTreeStore.save({ folders: nextFolders, playlists: songPlaylists })
+    return id
+  },
+
+  async renameSongFolder(id: string, name: string) {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const { songFolders, songPlaylists } = get()
+    const nextFolders = songFolders.map((f) =>
+      f.id === id ? { ...f, name: trimmed, updatedAt: new Date().toISOString() } : f,
+    )
+    set({ songFolders: nextFolders })
+    await libraryTreeStore.save({ folders: nextFolders, playlists: songPlaylists })
+  },
+
+  async deleteSongFolder(id: string) {
+    const { songFolders, songPlaylists, selectedLibraryPlaylistId, expandedFolderIds } = get()
+    const nextFolders = songFolders.filter((f) => f.id !== id)
+    const deletedPlaylistIds = new Set(songPlaylists.filter((p) => p.folderId === id).map((p) => p.id))
+    const nextPlaylists = songPlaylists.filter((p) => p.folderId !== id)
+    const nextSelected = selectedLibraryPlaylistId && deletedPlaylistIds.has(selectedLibraryPlaylistId)
+      ? null
+      : selectedLibraryPlaylistId
+    const nextExpanded = expandedFolderIds.filter((fId) => fId !== id)
+
+    set({
+      songFolders: nextFolders,
+      songPlaylists: nextPlaylists,
+      selectedLibraryPlaylistId: nextSelected,
+      expandedFolderIds: nextExpanded,
+    })
+    await libraryTreeStore.save({ folders: nextFolders, playlists: nextPlaylists })
+  },
+
+  async createSongPlaylist(name: string, folderId?: string | null) {
+    const trimmed = name.trim()
+    if (!trimmed) return ''
+    const id = `playlist_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+    const newPlaylist: SongPlaylist = {
+      id,
+      name: trimmed,
+      folderId: folderId ?? null,
+      songIds: [],
+      createdAt: new Date().toISOString(),
+    }
+    const { songFolders, songPlaylists, expandedFolderIds } = get()
+    const nextPlaylists = [...songPlaylists, newPlaylist]
+    const nextExpanded = folderId && !expandedFolderIds.includes(folderId)
+      ? [...expandedFolderIds, folderId]
+      : expandedFolderIds
+
+    set({
+      songPlaylists: nextPlaylists,
+      selectedLibraryPlaylistId: id,
+      expandedFolderIds: nextExpanded,
+    })
+    await libraryTreeStore.save({ folders: songFolders, playlists: nextPlaylists })
+    return id
+  },
+
+  async renameSongPlaylist(id: string, name: string) {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const { songFolders, songPlaylists } = get()
+    const nextPlaylists = songPlaylists.map((p) =>
+      p.id === id ? { ...p, name: trimmed, updatedAt: new Date().toISOString() } : p,
+    )
+    set({ songPlaylists: nextPlaylists })
+    await libraryTreeStore.save({ folders: songFolders, playlists: nextPlaylists })
+  },
+
+  async deleteSongPlaylist(id: string) {
+    const { songFolders, songPlaylists, selectedLibraryPlaylistId } = get()
+    const nextPlaylists = songPlaylists.filter((p) => p.id !== id)
+    const nextSelected = selectedLibraryPlaylistId === id ? null : selectedLibraryPlaylistId
+
+    set({
+      songPlaylists: nextPlaylists,
+      selectedLibraryPlaylistId: nextSelected,
+    })
+    await libraryTreeStore.save({ folders: songFolders, playlists: nextPlaylists })
+  },
+
+  async addSongsToSongPlaylist(playlistId: string, songIds: string[]) {
+    const { songFolders, songPlaylists } = get()
+    const target = songPlaylists.find((p) => p.id === playlistId)
+    if (!target) return
+
+    const existingSet = new Set(target.songIds)
+    const nextSongIds = [...target.songIds]
+    for (const sId of songIds) {
+      if (!existingSet.has(sId)) {
+        nextSongIds.push(sId)
+        existingSet.add(sId)
+      }
+    }
+
+    const nextPlaylists = songPlaylists.map((p) =>
+      p.id === playlistId
+        ? { ...p, songIds: nextSongIds, updatedAt: new Date().toISOString() }
+        : p,
+    )
+    set({ songPlaylists: nextPlaylists })
+    await libraryTreeStore.save({ folders: songFolders, playlists: nextPlaylists })
+  },
+
+  async removeSongFromSongPlaylist(playlistId: string, songId: string) {
+    const { songFolders, songPlaylists } = get()
+    const target = songPlaylists.find((p) => p.id === playlistId)
+    if (!target) return
+
+    const nextSongIds = target.songIds.filter((id) => id !== songId)
+    const nextPlaylists = songPlaylists.map((p) =>
+      p.id === playlistId
+        ? { ...p, songIds: nextSongIds, updatedAt: new Date().toISOString() }
+        : p,
+    )
+    set({ songPlaylists: nextPlaylists })
+    await libraryTreeStore.save({ folders: songFolders, playlists: nextPlaylists })
+  },
+
+  async reorderSongsInSongPlaylist(playlistId: string, songIds: string[]) {
+    const { songFolders, songPlaylists } = get()
+    const nextPlaylists = songPlaylists.map((p) =>
+      p.id === playlistId
+        ? { ...p, songIds, updatedAt: new Date().toISOString() }
+        : p,
+    )
+    set({ songPlaylists: nextPlaylists })
+    await libraryTreeStore.save({ folders: songFolders, playlists: nextPlaylists })
+  },
+
+  setSelectedLibraryPlaylistId(id: string | null) {
+    set({ selectedLibraryPlaylistId: id })
+  },
+
+  toggleFolderExpanded(folderId: string) {
+    const { expandedFolderIds } = get()
+    if (expandedFolderIds.includes(folderId)) {
+      set({ expandedFolderIds: expandedFolderIds.filter((id) => id !== folderId) })
+    } else {
+      set({ expandedFolderIds: [...expandedFolderIds, folderId] })
+    }
   },
 
   async loadPresentations() {

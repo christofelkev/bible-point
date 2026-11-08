@@ -1,6 +1,7 @@
 pub mod catalog;
 pub mod db;
 pub mod install;
+pub mod library_tree;
 pub mod media;
 pub mod model;
 pub mod presentations;
@@ -158,6 +159,19 @@ fn load_songs(app: AppHandle) -> Result<Option<String>, String> {
 fn save_songs(app: AppHandle, contents: String) -> Result<(), String> {
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     songs::save(&songs::path(dir), &contents)
+}
+
+/// Reads persisted library tree (folders & playlists). Returns null when not yet initialized.
+#[tauri::command]
+fn load_library_tree(app: AppHandle) -> Result<Option<String>, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    library_tree::load(&library_tree::path(dir))
+}
+
+#[tauri::command]
+fn save_library_tree(app: AppHandle, contents: String) -> Result<(), String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    library_tree::save(&library_tree::path(dir), &contents)
 }
 
 /// Reads persisted presentations collection. Returns null when not yet initialized.
@@ -373,6 +387,8 @@ pub fn run() {
             save_settings,
             load_songs,
             save_songs,
+            load_library_tree,
+            save_library_tree,
             load_presentations,
             save_presentations,
             save_presentation_slide,

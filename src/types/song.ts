@@ -29,3 +29,30 @@ export interface Song {
   createdAt?: string
   updatedAt?: string
 }
+
+/** Top-level folder for categorizing church services/departments (e.g. "Umum", "Sekolah Minggu", "Youth") */
+export interface SongFolder {
+  id: string
+  name: string
+  createdAt: string
+  updatedAt?: string
+}
+
+/** Specific service playlist inside a folder (or root) containing an ordered list of song IDs */
+export interface SongPlaylist {
+  id: string
+  name: string
+  /** Parent folder ID. null or empty means root playlist */
+  folderId: string | null
+  /** Ordered list of Song IDs */
+  songIds: string[]
+  createdAt: string
+  updatedAt?: string
+}
+
+/** Complete library structure persisted in library_tree.json */
+export interface SongLibraryTree {
+  folders: SongFolder[]
+  playlists: SongPlaylist[]
+}
+

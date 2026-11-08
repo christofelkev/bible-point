@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   Music,
   Plus,
@@ -7,9 +7,11 @@ import {
   Edit3,
   Trash2,
   ListPlus,
+  ListMusic,
   Presentation,
   FileText,
   Upload,
+  X,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useAppStore } from '../../store/useAppStore'
@@ -20,6 +22,8 @@ import { MediaBinPanel } from './MediaBinPanel'
 import { ImportPresentationModal } from './ImportPresentationModal'
 import { SectionContextMenu } from './SectionContextMenu'
 import { ResizeHandle } from '../ui/ResizeHandle'
+import { SongPlaylistTree } from './SongPlaylistTree'
+import { AddSongsToPlaylistModal } from './AddSongsToPlaylistModal'
 import { getGroupColorClasses } from '../../data/songHotkeys'
 import { applySectionTag, removeSectionStart, serializeSlidesToRawLyrics } from '../../services/songs/lyricParser'
 
@@ -35,6 +39,9 @@ export function LiveWorkspace() {
   const deleteSong = useAppStore((s) => s.deleteSong)
   const addSongToPlaylist = useAppStore((s) => s.addSongToPlaylist)
   const sectionHotkeys = useAppStore((s) => s.sectionHotkeys)
+  const selectedLibraryPlaylistId = useAppStore((s) => s.selectedLibraryPlaylistId)
+  const songPlaylists = useAppStore((s) => s.songPlaylists)
+  const removeSongFromSongPlaylist = useAppStore((s) => s.removeSongFromSongPlaylist)
 
   // Presentations store
   const presentations = useAppStore((s) => s.presentations)
@@ -55,6 +62,7 @@ export function LiveWorkspace() {
   const [isEditorOpen, setIsEditorOpen] = useState(false)
   const [editingSong, setEditingSong] = useState<Song | null>(null)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
+  const [isAddSongsModalOpen, setIsAddSongsModalOpen] = useState(false)
   const [contextMenu, setContextMenu] = useState<{
     x: number
     y: number
@@ -67,10 +75,23 @@ export function LiveWorkspace() {
   const mode = useAppStore((s) => s.mode)
   const goLiveSlide = useAppStore((s) => s.goLiveSlide)
 
-  const activeSong = songs.find((s) => s.id === activeSongId) ?? songs[0]
+  // Active playlist and filtered songs
+  const activePlaylist = songPlaylists.find((p) => p.id === selectedLibraryPlaylistId)
+
+  const currentViewSongs = useMemo(() => {
+    if (!activePlaylist) return songs
+    const list: Song[] = []
+    for (const sId of activePlaylist.songIds) {
+      const match = songs.find((s) => s.id === sId)
+      if (match) list.push(match)
+    }
+    return list
+  }, [songs, activePlaylist])
+
+  const activeSong = currentViewSongs.find((s) => s.id === activeSongId) ?? currentViewSongs[0] ?? songs[0]
   const activeDeck = presentations.find((d) => d.id === activeDeckId) ?? presentations[0]
 
-  const filteredSongs = songs.filter(
+  const filteredSongs = currentViewSongs.filter(
     (s) =>
       s.title.toLowerCase().includes(songSearch.toLowerCase()) ||
       s.artist.toLowerCase().includes(songSearch.toLowerCase()),
@@ -199,51 +220,134 @@ export function LiveWorkspace() {
         {/* Mode Lagu */}
         {presentationSubTab === 'songs' ? (
           <>
+            {/* Hierarchical Folder & Playlist Tree */}
+            <SongPlaylistTree />
+
+            {/* Breadcrumb banner if inside a playlist */}
+            {activePlaylist && (
+              <div className="px-2.5 py-1.5 bg-ink-950/80 border-b border-ink-800 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5 min-w-0 pr-1">
+                  <ListMusic size={12} className="text-amber-400 shrink-0" />
+                  <span className="font-semibold text-amber-300 truncate">{activePlaylist.name}</span>
+                  <span className="text-[10px] text-ink-500 tabular-nums">({activePlaylist.songIds.length})</span>
+                </div>
+                <button
+                  onClick={() => setIsAddSongsModalOpen(true)}
+                  className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer font-medium shrink-0"
+                >
+                  <Plus size={11} /> Pilih
+                </button>
+              </div>
+            )}
+
             <div className="p-2 border-b border-ink-800">
               <input
                 value={songSearch}
                 onChange={(e) => setSongSearch(e.target.value)}
-                placeholder="Cari lagu..."
+                placeholder={activePlaylist ? `Cari di ${activePlaylist.name}...` : 'Cari semua lagu...'}
                 className="w-full h-7 rounded bg-ink-950 border border-ink-800 px-2 text-xs placeholder:text-ink-500 focus:outline-none focus:border-ink-600"
               />
             </div>
 
             <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
               {filteredSongs.length === 0 ? (
-                <div className="p-4 text-center text-xs text-ink-500">
-                  {songSearch ? 'Lagu tidak ditemukan' : 'Belum ada lagu'}
+                <div className="p-4 text-center text-xs text-ink-500 space-y-2">
+                  <p>
+                    {songSearch
+                      ? 'Lagu tidak ditemukan'
+                      : activePlaylist
+                        ? 'Playlist ini masih kosong'
+                        : 'Belum ada lagu'}
+                  </p>
+                  {activePlaylist && !songSearch && (
+                    <button
+                      onClick={() => setIsAddSongsModalOpen(true)}
+                      className="px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-medium cursor-pointer"
+                    >
+                      + Masukkan Lagu
+                    </button>
+                  )}
                 </div>
               ) : (
-                filteredSongs.map((song) => {
+                filteredSongs.map((song, index) => {
                   const isSelected = song.id === activeSong?.id
                   return (
-                    <button
+                    <div
                       key={song.id}
                       onClick={() => setActiveSongId(song.id)}
                       className={clsx(
-                        'w-full text-left p-2.5 rounded-lg border transition-colors cursor-pointer group',
+                        'w-full text-left p-2.5 rounded-lg border transition-colors cursor-pointer group flex items-center justify-between',
                         isSelected
                           ? 'bg-ink-800/90 border-amber-500/50 text-white shadow-sm'
                           : 'bg-ink-900/40 border-ink-800/80 text-ink-300 hover:bg-ink-850 hover:text-white',
                       )}
                     >
-                      <div className="text-xs font-semibold truncate">
-                        {song.title}
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        {activePlaylist && (
+                          <span className="text-[10px] font-mono text-ink-500 tabular-nums shrink-0">
+                            {index + 1}.
+                          </span>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-semibold truncate">
+                            {song.title}
+                          </div>
+                          {song.artist && (
+                            <div className="text-[10px] text-ink-500 truncate">
+                              {song.artist}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </button>
+
+                      {/* Remove from playlist button */}
+                      {activePlaylist && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            void removeSongFromSongPlaylist(activePlaylist.id, song.id)
+                          }}
+                          title="Keluarkan dari playlist ini (lagu tetap aman di Semua Lagu)"
+                          className="opacity-0 group-hover:opacity-100 p-1 text-ink-400 hover:text-rose-400 transition-opacity cursor-pointer shrink-0"
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
                   )
                 })
               )}
             </div>
 
             <div className="p-2.5 border-t border-ink-800">
-              <button
-                onClick={handleOpenAddSong}
-                className="w-full h-8 rounded-lg bg-ink-800 hover:bg-ink-700 text-xs font-medium flex items-center justify-center gap-1.5 text-ink-200 transition-colors cursor-pointer"
-              >
-                <Plus size={13} />
-                <span>Tambah Lagu</span>
-              </button>
+              {activePlaylist ? (
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={() => setIsAddSongsModalOpen(true)}
+                    className="flex-1 h-8 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-xs font-semibold flex items-center justify-center gap-1.5 text-amber-300 transition-colors cursor-pointer"
+                  >
+                    <Plus size={13} />
+                    <span>Pilih Lagu</span>
+                  </button>
+                  <button
+                    onClick={handleOpenAddSong}
+                    title="Tulis lagu baru ke library & masukkan ke playlist ini"
+                    className="h-8 px-2.5 rounded-lg bg-ink-800 hover:bg-ink-700 text-xs font-medium flex items-center justify-center gap-1 text-ink-200 transition-colors cursor-pointer"
+                  >
+                    <Plus size={13} />
+                    <span>Lagu Baru</span>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleOpenAddSong}
+                  className="w-full h-8 rounded-lg bg-ink-800 hover:bg-ink-700 text-xs font-medium flex items-center justify-center gap-1.5 text-ink-200 transition-colors cursor-pointer"
+                >
+                  <Plus size={13} />
+                  <span>Tambah Lagu Baru</span>
+                </button>
+              )}
             </div>
           </>
         ) : (
@@ -586,6 +690,15 @@ export function LiveWorkspace() {
           void saveSong(saved)
         }}
       />
+
+      {/* Modal Tambah Lagu ke Playlist */}
+      {isAddSongsModalOpen && activePlaylist && (
+        <AddSongsToPlaylistModal
+          isOpen={isAddSongsModalOpen}
+          playlist={activePlaylist}
+          onClose={() => setIsAddSongsModalOpen(false)}
+        />
+      )}
 
       {/* Modal Import Presentasi (PDF / PPTX) */}
       <ImportPresentationModal
