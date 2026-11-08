@@ -12,6 +12,11 @@ import { OutputWindow } from './routes/OutputWindow'
  */
 const isOutput = window.location.hash.startsWith('#/output')
 
+// Prevent default WebView2 / browser context menu globally across the app
+window.addEventListener('contextmenu', (e) => {
+  e.preventDefault()
+})
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>{isOutput ? <OutputWindow /> : <ControlWindow />}</StrictMode>,
 )

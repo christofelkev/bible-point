@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Search, CornerDownLeft, BookOpen, Radio, Settings } from 'lucide-react'
+import { Search, CornerDownLeft, BookOpen, Radio, Settings, Maximize2, Minimize2 } from 'lucide-react'
 import clsx from 'clsx'
 import { useAppStore } from '../../store/useAppStore'
 import { Select } from '../ui/controls'
 import { OutputButton } from './OutputButton'
 import { SettingsModal } from './SettingsModal'
+import { isAppFullscreen, toggleAppFullscreen } from '../../services/platform'
 
 /**
  * The omnibox doubles as reference jump and full-text search.
@@ -26,6 +27,26 @@ export function TopBar() {
   const [query, setQuery] = useState('')
   const [flash, setFlash] = useState<'none' | 'miss'>('none')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  useEffect(() => {
+    void isAppFullscreen().then(setIsFullscreen)
+
+    const handleResize = () => {
+      void isAppFullscreen().then(setIsFullscreen)
+    }
+    window.addEventListener('resize', handleResize)
+    document.addEventListener('fullscreenchange', handleResize)
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      document.removeEventListener('fullscreenchange', handleResize)
+    }
+  }, [])
+
+  const handleToggleFullscreen = async () => {
+    const next = await toggleAppFullscreen()
+    setIsFullscreen(next)
+  }
 
   const installed = translations.filter((t) => t.installed)
 
@@ -58,9 +79,11 @@ export function TopBar() {
   return (
     <header className="h-12 shrink-0 flex items-center gap-3 px-3 border-b border-ink-800 bg-ink-900">
       <div className="flex items-center gap-2 pr-1">
-        <div className="h-6 w-6 rounded-md bg-brand-500 text-ink-950 grid place-items-center text-[11px] font-bold">
-          BP
-        </div>
+        <img
+          src="/app-logo.png"
+          alt="Bible Point"
+          className="h-6 w-6 rounded-md shadow-xs object-cover"
+        />
         <span className="text-[13px] font-semibold tracking-tight">Bible Point</span>
       </div>
 
@@ -134,6 +157,14 @@ export function TopBar() {
       <div className="flex-1 min-w-0" />
 
       <div className="flex items-center gap-2">
+        <button
+          onClick={handleToggleFullscreen}
+          title={isFullscreen ? 'Mode Jendela (F11)' : 'Layar Penuh (F11)'}
+          className="h-8 w-8 rounded-lg border border-ink-800 bg-ink-950 hover:bg-ink-900 text-ink-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+        >
+          {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+        </button>
+
         <button
           onClick={() => setIsSettingsOpen(true)}
           title="Pengaturan"

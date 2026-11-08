@@ -336,13 +336,13 @@ export function VerseStage({ state, showSafeArea = false }: Props) {
       )}
 
       {mode === 'logo' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-[1.5cqh] text-white/85">
-          <div
-            className="rounded-[1.4cqh] border border-white/25 flex items-center justify-center"
-            style={{ width: '11cqh', height: '11cqh' }}
-          >
-            <span style={{ fontSize: '5.5cqh', fontWeight: 300, letterSpacing: '-0.04em' }}>BP</span>
-          </div>
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-[2cqh] text-white/90">
+          <img
+            src="/app-logo.png"
+            alt="Bible Point"
+            className="rounded-[2cqh] shadow-2xl object-cover"
+            style={{ width: '13cqh', height: '13cqh' }}
+          />
           <div style={{ fontSize: '3.4cqh', fontWeight: 300, letterSpacing: '0.35em' }}>
             BIBLE POINT
           </div>

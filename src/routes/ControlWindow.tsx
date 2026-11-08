@@ -8,6 +8,7 @@ import { RightPanel } from '../components/control/RightPanel'
 import { LiveWorkspace } from '../components/live/LiveWorkspace'
 import { SplashScreen } from '../components/control/SplashScreen'
 import { ResizeHandle } from '../components/ui/ResizeHandle'
+import { toggleAppFullscreen } from '../services/platform'
 
 /** The operator's window: browse, select, style, project. */
 export function ControlWindow() {
@@ -94,6 +95,13 @@ function useProjectionShortcuts() {
         target instanceof HTMLSelectElement ||
         target?.isContentEditable
       if (typing) return
+
+      // Toggle fullscreen via F11
+      if (event.key === 'F11') {
+        event.preventDefault()
+        void toggleAppFullscreen()
+        return
+      }
 
       // Global mode toggling
       if ((event.ctrlKey || event.metaKey) && event.key === '1') {

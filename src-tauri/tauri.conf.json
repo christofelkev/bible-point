@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Bible Point",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "identifier": "org.chrivin.biblepoint",
   "build": {
     "frontendDist": "../dist",
@@ -14,12 +14,13 @@
       {
         "label": "main",
         "title": "Bible Point",
-        "width": 1200,
-        "height": 680,
+        "width": 1280,
+        "height": 720,
         "minWidth": 960,
         "minHeight": 540,
         "resizable": true,
-        "fullscreen": false,
+        "fullscreen": true,
+        "theme": "Dark",
         "center": true
       }
     ],

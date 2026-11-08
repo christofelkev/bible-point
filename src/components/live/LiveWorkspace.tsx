@@ -12,6 +12,7 @@ import {
   FileText,
   Upload,
   X,
+  MoreVertical,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useAppStore } from '../../store/useAppStore'
@@ -24,6 +25,7 @@ import { SectionContextMenu } from './SectionContextMenu'
 import { ResizeHandle } from '../ui/ResizeHandle'
 import { SongPlaylistTree } from './SongPlaylistTree'
 import { AddSongsToPlaylistModal } from './AddSongsToPlaylistModal'
+import { SongContextMenu } from './SongContextMenu'
 import { getGroupColorClasses } from '../../data/songHotkeys'
 import { applySectionTag, removeSectionStart, serializeSlidesToRawLyrics } from '../../services/songs/lyricParser'
 
@@ -42,6 +44,8 @@ export function LiveWorkspace() {
   const selectedLibraryPlaylistId = useAppStore((s) => s.selectedLibraryPlaylistId)
   const songPlaylists = useAppStore((s) => s.songPlaylists)
   const removeSongFromSongPlaylist = useAppStore((s) => s.removeSongFromSongPlaylist)
+  const addSongsToSongPlaylist = useAppStore((s) => s.addSongsToSongPlaylist)
+  const createSongPlaylist = useAppStore((s) => s.createSongPlaylist)
 
   // Presentations store
   const presentations = useAppStore((s) => s.presentations)
@@ -63,6 +67,11 @@ export function LiveWorkspace() {
   const [editingSong, setEditingSong] = useState<Song | null>(null)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   const [isAddSongsModalOpen, setIsAddSongsModalOpen] = useState(false)
+  const [songMenuState, setSongMenuState] = useState<{
+    x: number
+    y: number
+    song: Song
+  } | null>(null)
   const [contextMenu, setContextMenu] = useState<{
     x: number
     y: number
@@ -275,6 +284,11 @@ export function LiveWorkspace() {
                     <div
                       key={song.id}
                       onClick={() => setActiveSongId(song.id)}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setSongMenuState({ x: e.clientX, y: e.clientY, song })
+                      }}
                       className={clsx(
                         'w-full text-left p-2.5 rounded-lg border transition-colors cursor-pointer group flex items-center justify-between',
                         isSelected
@@ -300,20 +314,36 @@ export function LiveWorkspace() {
                         </div>
                       </div>
 
-                      {/* Remove from playlist button */}
-                      {activePlaylist && (
+                      <div className="flex items-center gap-0.5">
+                        {/* More options button */}
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation()
-                            void removeSongFromSongPlaylist(activePlaylist.id, song.id)
+                            const rect = e.currentTarget.getBoundingClientRect()
+                            setSongMenuState({ x: rect.right, y: rect.bottom, song })
                           }}
-                          title="Keluarkan dari playlist ini (lagu tetap aman di Semua Lagu)"
-                          className="opacity-0 group-hover:opacity-100 p-1 text-ink-400 hover:text-rose-400 transition-opacity cursor-pointer shrink-0"
+                          title="Pilihan Lagu"
+                          className="opacity-0 group-hover:opacity-100 p-1 text-ink-400 hover:text-white transition-opacity cursor-pointer shrink-0"
                         >
-                          <X size={12} />
+                          <MoreVertical size={13} />
                         </button>
-                      )}
+
+                        {/* Remove from playlist button */}
+                        {activePlaylist && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void removeSongFromSongPlaylist(activePlaylist.id, song.id)
+                            }}
+                            title="Keluarkan dari playlist ini (lagu tetap aman di Semua Lagu)"
+                            className="opacity-0 group-hover:opacity-100 p-1 text-ink-400 hover:text-rose-400 transition-opacity cursor-pointer shrink-0"
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )
                 })
@@ -720,6 +750,36 @@ export function LiveWorkspace() {
           onSelectGroup={handleSelectGroup}
           onRemoveSectionStart={handleRemoveSectionStart}
           onClose={() => setContextMenu(null)}
+        />
+      )}
+
+      {/* Context Menu Pilihan Lagu */}
+      {songMenuState && (
+        <SongContextMenu
+          x={songMenuState.x}
+          y={songMenuState.y}
+          song={songMenuState.song}
+          onClose={() => setSongMenuState(null)}
+          onEditSong={(s) => {
+            setEditingSong(s)
+            setIsEditorOpen(true)
+          }}
+          onDeleteSong={(s) => {
+            if (window.confirm(`Hapus lagu "${s.title}" dari library?`)) {
+              void deleteSong(s.id)
+            }
+          }}
+          onAddToRundown={(s) => addSongToPlaylist(s)}
+          onCreatePlaylist={(folderId) => {
+            const name = window.prompt('Nama Playlist Baru:')
+            if (name && name.trim()) {
+              void createSongPlaylist(name.trim(), folderId).then((newId) => {
+                if (newId && songMenuState?.song) {
+                  void addSongsToSongPlaylist(newId, [songMenuState.song.id])
+                }
+              })
+            }
+          }}
         />
       )}
     </div>

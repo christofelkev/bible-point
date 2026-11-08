@@ -36,9 +36,13 @@ export function SplashScreen({ isReady }: Props) {
       }`}
     >
       <div className="flex flex-col items-center">
-        {/* Logo BP */}
-        <div className="w-16 h-16 rounded-2xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center text-amber-400 shadow-xl shadow-amber-500/10 mb-4 animate-in fade-in zoom-in-95 duration-500">
-          <span className="text-2xl font-black tracking-tight">BP</span>
+        {/* Logo Resmi Bible Point */}
+        <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-2xl shadow-amber-500/20 mb-4 border border-ink-700/60 animate-in fade-in zoom-in-95 duration-500">
+          <img
+            src="/app-logo.png"
+            alt="Bible Point"
+            className="w-full h-full object-cover"
+          />
         </div>
 
         {/* Judul Utama */}
@@ -53,7 +57,7 @@ export function SplashScreen({ isReady }: Props) {
 
         {/* Versi */}
         <span className="text-[11px] font-mono text-ink-500">
-          v0.2.4
+          v0.2.5
         </span>
       </div>
     </div>
